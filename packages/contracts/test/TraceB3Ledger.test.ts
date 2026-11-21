@@ -18,7 +18,13 @@ import {
 } from '@traceb3/core';
 import { network } from 'hardhat';
 import type { NetworkConnection } from 'hardhat/types/network';
-import { hashDomain, keccak256, stringToBytes, zeroAddress } from 'viem';
+import {
+  getAddress,
+  hashDomain,
+  keccak256,
+  stringToBytes,
+  zeroAddress,
+} from 'viem';
 import {
   CHAIN_EXPLORER_BASE_URLS,
   CONTRACTS_VERSION,
@@ -407,7 +413,7 @@ describe('TraceB3Ledger', async function () {
     assert.equal(ev1.eventHash, createSigned.eventHash);
     assert.equal(ev1.prevHash, ZERO_BYTES32);
     assert.equal(ev1.targetSeq, 0);
-    assert.equal(ev1.actor, accounts.generator.account.address);
+    assert.equal(ev1.actor, getAddress(accounts.generator.account.address));
     assert.equal(ev1.orgId, GEN_ORG_ID);
     assert.equal(ev1.timestamp, createBlock.timestamp);
 
@@ -490,7 +496,7 @@ describe('TraceB3Ledger', async function () {
     assert.equal(ev4.seq, 4);
     assert.equal(ev4.eventType, EVENT_TYPE_TO_UINT8.TREATMENT);
     assert.equal(ev4.prevHash, deliverySigned.eventHash);
-    assert.equal(ev4.actor, accounts.facility.account.address);
+    assert.equal(ev4.actor, getAddress(accounts.facility.account.address));
 
     assert.equal(
       await ledger.read.nonces([accounts.generator.account.address]),

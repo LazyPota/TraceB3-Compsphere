@@ -1,4 +1,9 @@
-import { pino, type Logger as PinoLogger, type LoggerOptions } from 'pino';
+import {
+  pino,
+  type DestinationStream,
+  type Logger as PinoLogger,
+  type LoggerOptions,
+} from 'pino';
 import type { AppConfig } from './config.js';
 
 export type Logger = PinoLogger;
@@ -24,7 +29,7 @@ export const LOGGER_REDACT_PATHS: string[] = [
 export interface CreateLoggerOptions {
   level?: AppConfig['LOG_LEVEL'];
   name?: string;
-  destination?: pino.DestinationStream;
+  destination?: DestinationStream;
 }
 
 /**
