@@ -15,7 +15,7 @@ coverage/
 
 # Local runtime state (PGlite, local storage uploads, logs)
 .data/
-storage/
+/storage/
 *.log
 
 # Hardhat build & deployment caches (keep packages/contracts/exports/ tracked!)
