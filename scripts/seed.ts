@@ -1,25 +1,26 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ONCHAIN_ACTOR_ROLE_MAP, type ActorRole } from '@traceb3/core';
-import dotenv from 'dotenv';
-import { eq } from 'drizzle-orm';
-import {
-  createPublicClient,
-  createWalletClient,
-  defineChain,
-  http,
-  parseAbi,
-  type Hex,
-} from 'viem';
-import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import {
   createDatabase,
   createLogger,
   loadConfig,
-  members,
+  markMemberOnChainRegistered,
   seedDemoData,
 } from '../apps/api/src/index.js';
+import {
+  createPublicClient,
+  createWalletClient,
+  defineChain,
+  dotenv,
+  generatePrivateKey,
+  http,
+  ONCHAIN_ACTOR_ROLE_MAP,
+  parseAbi,
+  privateKeyToAccount,
+  type ActorRole,
+  type Hex,
+} from '../apps/api/src/services/seed-cli-deps.js';
 
 const DEMO_ROLES: readonly ActorRole[] = [
   'ADMIN',
@@ -171,14 +172,7 @@ async function main(): Promise<void> {
           const txHash = await walletClient.writeContract(request);
           await publicClient.waitForTransactionReceipt({ hash: txHash });
 
-          await dbClient.db
-            .update(members)
-            .set({
-              onChainTxHash: txHash,
-              onChainRegisteredAt: new Date(),
-              updatedAt: new Date(),
-            })
-            .where(eq(members.id, member.id));
+          await markMemberOnChainRegistered(dbClient.db, member.id, txHash);
 
           logger.info(
             {

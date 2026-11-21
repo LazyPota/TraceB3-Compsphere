@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { PassThrough } from 'node:stream';
 import {
   buildCanonicalEventRecord,
@@ -475,4 +478,30 @@ describe('Database Hardening, Migrations, RLS & Seed', () => {
     expect(output).not.toContain('0xdeadbeef');
     expect(output).toContain('[REDACTED]');
   });
+
+  it(
+    'supports disk-backed pglite://<path> and resolves migrations from any CWD',
+    async () => {
+      const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'traceb3-pglite-'));
+      const dataDir = path.join(tmpRoot, 'pgdata');
+      const prevCwd = process.cwd();
+      try {
+        process.chdir(tmpRoot);
+        const client = await createDatabase(`pglite://${dataDir}`);
+        openClients.push(client);
+        await client.migrate();
+        const health = await client.healthCheck();
+        expect(health).toEqual({ ok: true, driver: 'pglite' });
+
+        const seeded = await seedDemoData(client.db);
+        expect(seeded.organizations).toHaveLength(4);
+        expect(seeded.members).toHaveLength(5);
+        await client.close();
+      } finally {
+        process.chdir(prevCwd);
+        await fs.rm(tmpRoot, { recursive: true, force: true });
+      }
+    },
+    30_000,
+  );
 });

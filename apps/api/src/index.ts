@@ -37,6 +37,7 @@ export {
   type Logger,
 } from './logger.js';
 export {
+  markMemberOnChainRegistered,
   seedDemoData,
   type SeedDemoDataOptions,
   type SeedDemoDataResult,

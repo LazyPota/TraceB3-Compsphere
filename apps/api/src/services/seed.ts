@@ -269,3 +269,21 @@ export async function seedDemoData(
     };
   });
 }
+
+/**
+ * Records an on-chain actor registration transaction hash for a seeded member.
+ */
+export async function markMemberOnChainRegistered(
+  db: DbExecutor,
+  memberId: string,
+  txHash: string,
+): Promise<void> {
+  await db
+    .update(members)
+    .set({
+      onChainTxHash: txHash,
+      onChainRegisteredAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(members.id, memberId));
+}
