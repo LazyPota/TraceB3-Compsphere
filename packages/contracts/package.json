@@ -10,10 +10,31 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
-    "dev:chain": "echo \"Hardhat node will be configured in Phase 2\"",
-    "clean": "node -e \"import('node:fs').then(fs => fs.rmSync('dist', { recursive: true, force: true }))\""
+    "compile": "hardhat compile",
+    "export-abi": "tsx scripts/export-abi.ts",
+    "build": "hardhat compile && pnpm export-abi && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+    "test": "hardhat test",
+    "dev:chain": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "deploy:base-sepolia": "hardhat run scripts/deploy.ts --network baseSepolia",
+    "clean": "node -e \"import('node:fs').then(fs => { for (const d of ['dist', 'cache', 'artifacts']) fs.rmSync(d, { recursive: true, force: true }); })\""
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.2.0",
+    "@traceb3/core": "workspace:*",
+    "viem": "^2.58.2"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-ignition-viem": "^3.1.6",
+    "@nomicfoundation/hardhat-keystore": "^3.1.2",
+    "@nomicfoundation/hardhat-network-helpers": "^3.0.12",
+    "@nomicfoundation/hardhat-node-test-runner": "^3.1.2",
+    "@nomicfoundation/hardhat-toolbox-viem": "^5.0.7",
+    "@nomicfoundation/hardhat-verify": "^3.1.5",
+    "@nomicfoundation/hardhat-viem": "^3.1.0",
+    "@nomicfoundation/hardhat-viem-assertions": "^3.1.5",
+    "hardhat": "^3.0.0",
+    "tsx": "^4.19.3"
   }
 }
