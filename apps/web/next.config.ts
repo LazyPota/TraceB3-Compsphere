@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   outputFileTracingRoot: repoRoot,
   turbopack: { root: repoRoot },
+  serverExternalPackages: ['@electric-sql/pglite', 'pino', 'postgres', 'qrcode'],
   transpilePackages: ['@traceb3/core', '@traceb3/contracts'],
   reactStrictMode: true,
   poweredByHeader: false,

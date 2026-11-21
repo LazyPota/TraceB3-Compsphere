@@ -449,6 +449,46 @@ export function createIntentsRouter(deps: {
       }, 15_000);
       pingTimer.unref();
 
+      let pollBusy = false;
+      const dbPollTimer = setInterval(() => {
+        if (closed || pollBusy) return;
+        pollBusy = true;
+        void loadAuthorizedEvent(deps.db, auth, id)
+          .then(async (polled) => {
+            if (
+              closed ||
+              (polled.chainStatus !== 'ANCHORED' &&
+                polled.chainStatus !== 'FAILED')
+            ) {
+              return;
+            }
+            closed = true;
+            await stream.writeSSE({
+              event: 'status',
+              data: formatPayload({
+                eventId: polled.id,
+                batchId: polled.batchId,
+                seq: polled.seq,
+                chainStatus: polled.chainStatus,
+                txHash: polled.txHash,
+                blockNumber: polled.blockNumber,
+                anchoredAt: polled.anchoredAt
+                  ? polled.anchoredAt.toISOString()
+                  : null,
+                failureReason: polled.failureReason,
+              }),
+            });
+            finishStream();
+          })
+          .catch(() => {
+            // Keep stream active until maxTimer or unsubscribe terminates it
+          })
+          .finally(() => {
+            pollBusy = false;
+          });
+      }, 2_000);
+      dbPollTimer.unref();
+
       const maxTimer = setTimeout(() => {
         closed = true;
         finishStream();
@@ -488,6 +528,7 @@ export function createIntentsRouter(deps: {
         await donePromise;
       } finally {
         clearInterval(pingTimer);
+        clearInterval(dbPollTimer);
         clearTimeout(maxTimer);
         unsubscribe();
       }

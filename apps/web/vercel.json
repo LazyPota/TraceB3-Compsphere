@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
-  "buildCommand": "pnpm --filter @traceb3/core build && pnpm --filter @traceb3/contracts build && pnpm --filter web build",
+  "buildCommand": "pnpm --filter @traceb3/core build && pnpm --filter @traceb3/contracts build && pnpm --filter @traceb3/api build && pnpm --filter web build",
   "headers": [
     {
       "source": "/(.*)",

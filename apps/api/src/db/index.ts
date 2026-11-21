@@ -1,10 +1,7 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PGlite } from '@electric-sql/pglite';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
-import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
-import { migrate as migratePglite } from 'drizzle-orm/pglite/migrator';
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js';
 import { migrate as migratePostgres } from 'drizzle-orm/postgres-js/migrator';
 import postgres from 'postgres';
@@ -62,6 +59,13 @@ export async function createDatabase(
   databaseUrl: string,
 ): Promise<DatabaseClient> {
   if (databaseUrl.startsWith('pglite://')) {
+    const [{ PGlite }, { drizzle: drizzlePglite }, { migrate: migratePglite }] =
+      await Promise.all([
+        import('@electric-sql/pglite'),
+        import('drizzle-orm/pglite'),
+        import('drizzle-orm/pglite/migrator'),
+      ]);
+
     const target = resolvePgliteTarget(databaseUrl);
     const client = new PGlite(target);
     await client.waitReady;
@@ -104,7 +108,7 @@ export async function createDatabase(
     databaseUrl.startsWith('postgresql://')
   ) {
     const sqlClient = postgres(databaseUrl, {
-      max: 10,
+      max: process.env.VERCEL ? 3 : 10,
       prepare: false,
     });
     const pgDb = drizzlePostgres(sqlClient, { schema });

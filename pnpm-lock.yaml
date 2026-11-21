@@ -269,6 +269,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.108.2
         version: 5.108.2(@types/react@19.3.0)(react@19.3.1)
+      '@traceb3/api':
+        specifier: workspace:*
+        version: link:../api
       '@traceb3/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
