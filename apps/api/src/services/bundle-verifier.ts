@@ -83,7 +83,10 @@ export async function verifyProofBundleAgainstRpc(
     const reasons: string[] = [];
     let verdict: EventVerificationVerdict = 'MATCH';
 
-    const recomputedHash = computeEventHash(ev.record).toLowerCase();
+    const recomputedHash = computeEventHash({
+      ...ev.record,
+      prevEventHash: ev.record.prevEventHash as `0x${string}`,
+    }).toLowerCase();
     if (recomputedHash !== ev.eventHash.toLowerCase()) {
       verdict = 'HASH_MISMATCH';
       hasTamper = true;

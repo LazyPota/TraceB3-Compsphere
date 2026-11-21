@@ -332,7 +332,7 @@ async function assertBatchReadAccess(
   db: DatabaseClient,
   auth: AuthContext,
   batch: typeof batches.$inferSelect,
-  requestId: string | null,
+  requestId: string | null | undefined,
   actionName: string,
 ): Promise<void> {
   if (auth.role === 'ADMIN' || auth.role === 'AUDITOR') {
@@ -346,7 +346,7 @@ async function assertBatchReadAccess(
         resourceType: 'batch',
         resourceId: batch.id,
         metadata: { batchRef: batch.batchRef },
-        requestId,
+        requestId: requestId ?? null,
       });
     }
     return;
