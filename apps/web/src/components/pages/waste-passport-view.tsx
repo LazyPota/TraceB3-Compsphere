@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  formatGramsAsKg,
   type BatchStatus,
   type DiscrepancyReport,
   type DiscrepancySeverity,
@@ -36,10 +35,8 @@ import {
   DISCREPANCY_CODE_LABELS,
   EVENT_TYPE_LABELS,
   formatShortHash,
-  formatTimestampWib,
 } from '@/lib/b3-codes';
 import { parseBatchNotes } from '@/lib/notes';
-import { webEnv } from '@/lib/env';
 import { AppShell } from '@/components/layout/app-shell';
 import { PublicHeader } from '@/components/layout/public-header';
 import { Button } from '@/components/ui/button';
@@ -51,7 +48,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
-import { CopyChip } from '@/components/domain/copy-chip';
 import { HashVerificationBanner } from '@/components/domain/hash-verification-banner';
 import { WeightReconciliationBar } from '@/components/domain/weight-reconciliation-bar';
 import {
@@ -64,7 +60,6 @@ import {
   Web3TxProgressModal,
   type Web3TxResult,
 } from '@/components/domain/web3-tx-progress-modal';
-import { cn } from '@/lib/cn';
 
 type PassportTab = 'timeline' | 'proof' | 'revisions';
 
