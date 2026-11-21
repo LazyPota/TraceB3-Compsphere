@@ -577,9 +577,9 @@ async function main(): Promise<void> {
     );
     assertOk(
       discBefore.data.hasDiscrepancy &&
-        discBefore.data.maxSeverity === 'critical' &&
-        totalMismatch?.deltaKg === '230' &&
-        totalMismatch?.percent === 27.06,
+      discBefore.data.maxSeverity === 'critical' &&
+      totalMismatch?.deltaKg === '230' &&
+      totalMismatch?.percent === 27.06,
       `Expected critical 230kg / 27.06% discrepancy, got ${JSON.stringify(discBefore.data)}`,
     );
 
@@ -675,7 +675,7 @@ async function main(): Promise<void> {
       }>(`${apiUrl}/v1/public/passports/${publicId}/verify`);
       assertOk(
         afterFile.data.verdict === 'TAMPERED' &&
-          afterFile.data.affectedFiles[0]?.issue === 'FILE_MISMATCH',
+        afterFile.data.affectedFiles[0]?.issue === 'FILE_MISMATCH',
         `Expected TAMPERED/FILE_MISMATCH, got ${JSON.stringify(afterFile.data)}`,
       );
 
@@ -699,9 +699,9 @@ async function main(): Promise<void> {
       }>(`${apiUrl}/v1/public/passports/${publicId}/verify`);
       assertOk(
         afterDb.data.verdict === 'TAMPERED' &&
-          afterDb.data.affectedEvents.some(
-            (e) => e.seq === 2 && e.verdict === 'HASH_MISMATCH',
-          ),
+        afterDb.data.affectedEvents.some(
+          (e) => e.seq === 2 && e.verdict === 'HASH_MISMATCH',
+        ),
         `Expected TAMPERED/HASH_MISMATCH on seq 2, got ${JSON.stringify(afterDb.data)}`,
       );
     }
