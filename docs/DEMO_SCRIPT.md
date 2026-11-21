@@ -53,12 +53,24 @@ pnpm demo:tamper -- --batch <BATCH_UUID> --public <PUBLIC_ID> --mode db --seq 2
 
 ## Option C — Running Against Base Sepolia
 
+- **Deployed `TraceB3Ledger` (Base Sepolia, `chainId: 84532`):** [`0xF7566fF7dE836Ad8bD5BB3D484B32DD6796e90f1`](https://sepolia.basescan.org/address/0xF7566fF7dE836Ad8bD5BB3D484B32DD6796e90f1)
+
 Set in `.env`:
 - `CHAIN_RPC_URL=<Base Sepolia RPC URL>`
 - `CHAIN_ID=84532`
-- `LEDGER_ADDRESS=<Deployed Base Sepolia TraceB3Ledger Address>`
+- `LEDGER_ADDRESS=0xF7566fF7dE836Ad8bD5BB3D484B32DD6796e90f1`
 - `RELAYER_PRIVATE_KEY=<Funded Base Sepolia Relayer Key>`
 - `DEMO_MODE=true`
 - `PUBLIC_VIEW_LEVEL=full`
 
-Start the API (`pnpm dev:api`), seed onto Base Sepolia (`pnpm demo:seed`), and run `pnpm demo:e2e`. The script outputs clickable `https://sepolia.basescan.org/tx/...` links for every custody event!
+Start the API (`pnpm dev:api`), seed onto Base Sepolia (`pnpm demo:seed`), and run `pnpm demo:e2e`. The script outputs clickable `https://sepolia.basescan.org/tx/...` links for every custody event.
+
+### Verified Base Sepolia E2E Run (`TB3-DEMO-1795249516071`, Public ID `2TcxO0San0f5KioL`)
+
+| Seq | Event Type | Block | Transaction |
+| :--- | :--- | :--- | :--- |
+| `#1` | `CREATED` | `61638238` | [`0x9a345df3...e9a4a4`](https://sepolia.basescan.org/tx/0x9a345df3d2fb6fd00ad9396196b15d683b93b93e338f984d98762ac514e9a4a4) |
+| `#2` | `CUSTODY_TRANSFERRED` | `61638268` | [`0xb560310f...49fec0d`](https://sepolia.basescan.org/tx/0xb560310ff72c1ba9eaf87b8de7355167c23e76ea04cf52dee8edd1bc249fec0d) |
+| `#3` | `CUSTODY_TRANSFERRED` | `61638295` | [`0x9a8a2b79...f99346f`](https://sepolia.basescan.org/tx/0x9a8a2b793f22d41ff5b26b94c2f4584345aa14ec17a47661854e985bcf99346f) |
+| `#4` | `REVISION` | `61638304` | [`0xae7d1ede...e8886b`](https://sepolia.basescan.org/tx/0xae7d1edeb3f2ad084cd8cd57298a73157573cb564467e26c8dc8037578e8886b) |
+| `#5` | `TREATMENT` | `61638313` | [`0xd1c06aeb...7141d98`](https://sepolia.basescan.org/tx/0xd1c06aeb4b4384323802d337f027340d9b027cc325b7d46127cbdcd837141d98) |

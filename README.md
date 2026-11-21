@@ -57,11 +57,19 @@ pnpm demo:e2e -- --self-hosted
 
 | Path | Package | Description |
 | :--- | :--- | :--- |
-| [`packages/core`](file:///d:/Project/TraceB3-Compsphere/packages/core/package.json) | `@traceb3/core` | Pure, zero-IO browser/Node shared lib: RFC 8785 canonicalization, SHA-256/Keccak256 hashing, `bigint` integer-gram normalization, EIP-712 definitions, Zod v4 schemas, state machine, discrepancy engine |
-| [`packages/contracts`](file:///d:/Project/TraceB3-Compsphere/packages/contracts/package.json) | `@traceb3/contracts` | Hardhat 3 + OpenZeppelin v5 `TraceB3Ledger.sol`, invariant test suite, deploy scripts, typed ABI & address exports |
-| [`packages/sdk`](file:///d:/Project/TraceB3-Compsphere/packages/sdk/package.json) | `@traceb3/sdk` | End-to-end typed `hono/client` wrapper (`createTraceB3Client`) + re-exported core & contract helpers |
-| [`apps/api`](file:///d:/Project/TraceB3-Compsphere/apps/api/package.json) | `@traceb3/api` | Hono + OpenAPI API server, Drizzle dual-mode DB (`pglite://` & `postgres://`), storage adapters, SIWE auth, single-concurrency relayer, reconciler, verification service |
-| [`scripts/`](file:///d:/Project/TraceB3-Compsphere/scripts/dev-all.ts) | — | `dev-all.ts`, `seed.ts`, `e2e-demo.ts`, `tamper-demo.ts`, `verify-bundle.ts` |
+| [`packages/core`](packages/core/package.json) | `@traceb3/core` | Pure, zero-IO browser/Node shared lib: RFC 8785 canonicalization, SHA-256/Keccak256 hashing, `bigint` integer-gram normalization, EIP-712 definitions, Zod v4 schemas, state machine, discrepancy engine |
+| [`packages/contracts`](packages/contracts/package.json) | `@traceb3/contracts` | Hardhat 3 + OpenZeppelin v5 `TraceB3Ledger.sol`, invariant test suite, deploy scripts, typed ABI & address exports |
+| [`packages/sdk`](packages/sdk/package.json) | `@traceb3/sdk` | End-to-end typed `hono/client` wrapper (`createTraceB3Client`) + re-exported core & contract helpers |
+| [`apps/api`](apps/api/package.json) | `@traceb3/api` | Hono + OpenAPI API server, Drizzle dual-mode DB (`pglite://` & `postgres://`), storage adapters, SIWE auth, single-concurrency relayer, reconciler, verification service |
+| [`scripts/`](scripts/dev-all.ts) | — | `dev-all.ts`, `seed.ts`, `e2e-demo.ts`, `tamper-demo.ts`, `verify-bundle.ts` |
+
+---
+
+## Live Deployment (Base Sepolia)
+
+- **Network:** Base Sepolia (`chainId: 84532`)
+- **Contract (`TraceB3Ledger`):** [`0xF7566fF7dE836Ad8bD5BB3D484B32DD6796e90f1`](https://sepolia.basescan.org/address/0xF7566fF7dE836Ad8bD5BB3D484B32DD6796e90f1)
+- **Registry Exports:** `LEDGER_ADDRESSES[84532]` / `getLedgerAddress(84532)` exported automatically from `@traceb3/contracts` and `@traceb3/sdk`.
 
 ---
 
@@ -79,9 +87,9 @@ pnpm demo:e2e -- --self-hosted
 
 ## Documentation
 
-- [Architecture Guide](file:///d:/Project/TraceB3-Compsphere/docs/ARCHITECTURE.md)
-- [HTTP API Reference](file:///d:/Project/TraceB3-Compsphere/docs/API.md)
-- [Frontend Handoff Guide (Next.js + wagmi)](file:///d:/Project/TraceB3-Compsphere/docs/FRONTEND_HANDOFF.md)
-- [Live Demo Script](file:///d:/Project/TraceB3-Compsphere/docs/DEMO_SCRIPT.md)
-- [Security & Threat Model](file:///d:/Project/TraceB3-Compsphere/docs/SECURITY.md)
-- [Engineering Assumptions & Scope](file:///d:/Project/TraceB3-Compsphere/docs/ASSUMPTIONS.md)
+- [Architecture Guide](docs/ARCHITECTURE.md)
+- [HTTP API Reference](docs/API.md)
+- [Frontend Handoff Guide (Next.js + wagmi)](docs/FRONTEND_HANDOFF.md)
+- [Live Demo Script](docs/DEMO_SCRIPT.md)
+- [Security & Threat Model](docs/SECURITY.md)
+- [Engineering Assumptions & Scope](docs/ASSUMPTIONS.md)

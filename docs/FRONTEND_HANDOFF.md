@@ -19,6 +19,7 @@ Once ready, you have:
 - **Scalar Interactive Docs:** `http://127.0.0.1:3001/docs`
 - **OpenAPI 3.1 JSON:** `http://127.0.0.1:3001/openapi.json`
 - **Demo Wallets & Private Keys:** Saved to `.env.demo` (import into MetaMask/Rabby or use in tests)
+- **Live Base Sepolia Deployment:** `chainId: 84532`, `TraceB3Ledger`: `0xF7566fF7dE836Ad8bD5BB3D484B32DD6796e90f1` (automatically resolved via `getLedgerAddress(84532)` in `@traceb3/sdk`)
 - **Verify everything end-to-end anytime:** `pnpm demo:e2e -- --self-hosted` (or `pnpm demo:e2e` against the running stack)
 
 ---
