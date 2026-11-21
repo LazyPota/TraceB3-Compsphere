@@ -14,7 +14,8 @@ import { createStorageAdapter } from './storage/index.js';
 
 function loadEnvFiles(): void {
   const cwdEnv = path.resolve(process.cwd(), '.env');
-  const rootEnv = fileURLToPath(new URL('../../../.env', import.meta.url));
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const rootEnv = path.resolve(currentDir, '..', '..', '..', '.env');
   if (existsSync(cwdEnv)) {
     dotenv.config({ path: cwdEnv });
   }

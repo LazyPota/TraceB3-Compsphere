@@ -28,7 +28,8 @@ export async function runMigrations(
 
 async function main(): Promise<void> {
   const cwdEnv = path.resolve(process.cwd(), '.env');
-  const rootEnv = fileURLToPath(new URL('../../../../.env', import.meta.url));
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const rootEnv = path.resolve(currentDir, '..', '..', '..', '..', '.env');
   if (existsSync(cwdEnv)) {
     dotenv.config({ path: cwdEnv });
   }
