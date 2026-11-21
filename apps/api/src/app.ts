@@ -5,16 +5,26 @@ import { HTTPException } from 'hono/http-exception';
 import { requestId, type RequestIdVariables } from 'hono/request-id';
 import { secureHeaders } from 'hono/secure-headers';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { ChainClient } from './chain/client.js';
+import { ChainRelayWorker } from './chain/relayer.js';
 import type { AppConfig } from './config.js';
 import type { DatabaseClient } from './db/index.js';
 import { AppError, problemResponse } from './errors.js';
 import type { Logger } from './logger.js';
+import type { AuthContext } from './middleware/auth.js';
+import { createAdminRouter } from './routes/admin.js';
+import { createAuthRouter } from './routes/auth.js';
+import { createEvidenceRouter } from './routes/evidence.js';
+import { createIntentsRouter } from './routes/intents.js';
+import { createSystemRouter } from './routes/system.js';
 import type { StorageAdapter } from './storage/index.js';
 
 export const API_VERSION = '0.1.0';
 
 export interface AppEnv {
-  Variables: RequestIdVariables;
+  Variables: RequestIdVariables & {
+    auth?: AuthContext;
+  };
 }
 
 export interface AppDeps {
@@ -22,6 +32,8 @@ export interface AppDeps {
   logger: Logger;
   db: DatabaseClient;
   storage: StorageAdapter;
+  chain?: ChainClient;
+  relayer?: ChainRelayWorker;
 }
 
 const ComponentCheckSchema = z.object({
@@ -73,6 +85,15 @@ const healthRoute = createRoute({
  */
 export function createApp(deps: AppDeps) {
   const allowedOrigins = new Set(deps.config.FRONTEND_ORIGINS);
+  const chain = deps.chain ?? new ChainClient(deps.config);
+  const relayer =
+    deps.relayer ??
+    new ChainRelayWorker({
+      config: deps.config,
+      logger: deps.logger,
+      db: deps.db,
+      chain,
+    });
 
   const baseApp = new OpenAPIHono<AppEnv>({
     defaultHook: (result, c) => {
@@ -181,24 +202,72 @@ export function createApp(deps: AppDeps) {
     return problemResponse(c, AppError.internal());
   });
 
-  const typedApp = baseApp.openapi(healthRoute, async (c) => {
-    const [database, storage] = await Promise.all([
-      deps.db.healthCheck(),
-      deps.storage.healthCheck(),
-    ]);
+  const typedApp = baseApp
+    .openapi(healthRoute, async (c) => {
+      const [database, storage] = await Promise.all([
+        deps.db.healthCheck(),
+        deps.storage.healthCheck(),
+      ]);
 
-    const healthy = database.ok && storage.ok;
-    const payload = {
-      status: healthy ? ('ok' as const) : ('degraded' as const),
-      version: API_VERSION,
-      timestamp: new Date().toISOString(),
-      checks: {
-        database,
-        storage,
-      },
-    };
+      const healthy = database.ok && storage.ok;
+      const payload = {
+        status: healthy ? ('ok' as const) : ('degraded' as const),
+        version: API_VERSION,
+        timestamp: new Date().toISOString(),
+        checks: {
+          database,
+          storage,
+        },
+      };
 
-    return healthy ? c.json(payload, 200) : c.json(payload, 503);
+      return healthy ? c.json(payload, 200) : c.json(payload, 503);
+    })
+    .route(
+      '/',
+      createSystemRouter({
+        db: deps.db,
+        storage: deps.storage,
+        chain,
+      }),
+    )
+    .route(
+      '/',
+      createAuthRouter({
+        config: deps.config,
+        db: deps.db,
+        chain,
+      }),
+    )
+    .route(
+      '/',
+      createAdminRouter({
+        config: deps.config,
+        db: deps.db,
+        relayer,
+      }),
+    )
+    .route(
+      '/',
+      createEvidenceRouter({
+        config: deps.config,
+        db: deps.db,
+        storage: deps.storage,
+      }),
+    )
+    .route(
+      '/',
+      createIntentsRouter({
+        config: deps.config,
+        db: deps.db,
+        chain,
+        relayer,
+      }),
+    );
+
+  typedApp.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
+    type: 'http',
+    scheme: 'bearer',
+    bearerFormat: 'JWT',
   });
 
   typedApp.doc31('/openapi.json', {

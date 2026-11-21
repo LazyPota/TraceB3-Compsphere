@@ -5,6 +5,20 @@ export {
   type AppEnv,
   type AppType,
 } from './app.js';
+export {
+  ChainClient,
+  decodeContractRevert,
+  type ChainReadinessCheck,
+  type DecodedContractRevert,
+  type OnChainActorInfo,
+  type OnChainAnchoredEvent,
+  type OnChainBatchHeader,
+} from './chain/client.js';
+export {
+  ChainRelayWorker,
+  type ChainRelayWorkerDeps,
+  type EventStatusUpdate,
+} from './chain/relayer.js';
 export { loadConfig, type AppConfig } from './config.js';
 export {
   createDatabase,
@@ -36,6 +50,13 @@ export {
   type CreateLoggerOptions,
   type Logger,
 } from './logger.js';
+export {
+  createRequireAuth,
+  getAuthContext,
+  requireRoles,
+  type AuthContext,
+  type AuthEnv,
+} from './middleware/auth.js';
 export {
   markMemberOnChainRegistered,
   seedDemoData,

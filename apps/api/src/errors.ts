@@ -91,6 +91,88 @@ export class AppError extends Error {
     });
   }
 
+  static badSignature(detail = 'Invalid cryptographic signature'): AppError {
+    return new AppError({
+      status: 400,
+      code: 'BAD_SIGNATURE',
+      title: 'Bad Signature',
+      detail,
+    });
+  }
+
+  static intentExpired(detail = 'Custody intent has expired'): AppError {
+    return new AppError({
+      status: 410,
+      code: 'INTENT_EXPIRED',
+      title: 'Intent Expired',
+      detail,
+    });
+  }
+
+  static evidenceTooLarge(
+    detail = 'Uploaded file exceeds maximum allowed size',
+  ): AppError {
+    return new AppError({
+      status: 413,
+      code: 'EVIDENCE_TOO_LARGE',
+      title: 'Evidence Too Large',
+      detail,
+    });
+  }
+
+  static evidenceTypeNotAllowed(
+    detail = 'File format is not allowed; accepted formats: PDF, JPEG, PNG, WebP',
+  ): AppError {
+    return new AppError({
+      status: 415,
+      code: 'EVIDENCE_TYPE_NOT_ALLOWED',
+      title: 'Unsupported Media Type',
+      detail,
+    });
+  }
+
+  static chainRevert(
+    detail = 'Smart contract rejected transaction',
+    cause?: unknown,
+  ): AppError {
+    return new AppError({
+      status: 422,
+      code: 'CHAIN_REVERT',
+      title: 'Chain Revert',
+      detail,
+      cause,
+    });
+  }
+
+  static chainUnavailable(
+    detail = 'Blockchain RPC endpoint or relayer is unavailable',
+    cause?: unknown,
+  ): AppError {
+    return new AppError({
+      status: 503,
+      code: 'CHAIN_UNAVAILABLE',
+      title: 'Chain Unavailable',
+      detail,
+      cause,
+    });
+  }
+
+  static rateLimited(
+    detail = 'Too many requests; please retry shortly',
+    retryAfterSeconds?: number,
+  ): AppError {
+    return new AppError({
+      status: 429,
+      code: 'RATE_LIMITED',
+      title: 'Rate Limited',
+      detail,
+      headers:
+        retryAfterSeconds !== undefined
+          ? { 'Retry-After': String(Math.max(1, Math.ceil(retryAfterSeconds))) }
+          : undefined,
+    });
+  }
+
   static internal(detail = 'An unexpected internal error occurred', cause?: unknown): AppError {
     return new AppError({
       status: 500,

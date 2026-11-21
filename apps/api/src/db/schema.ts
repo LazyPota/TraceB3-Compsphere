@@ -249,6 +249,11 @@ export const intents = pgTable(
     wasteCode: text('waste_code').notNull(),
     wasteName: text('waste_name'),
     batchRef: text('batch_ref'),
+    batchMeta: jsonb('batch_meta').$type<{
+      wasteCategory?: string | null;
+      festronikRef?: string | null;
+      monijaRef?: string | null;
+    } | null>(),
     record: jsonb('record').$type<CanonicalEventRecordV1>().notNull(),
     typedData: jsonb('typed_data')
       .$type<CustodyIntentTypedDataJson>()

@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { serve } from '@hono/node-server';
 import dotenv from 'dotenv';
 import { createApp } from './app.js';
+import { ChainClient } from './chain/client.js';
+import { ChainRelayWorker } from './chain/relayer.js';
 import { loadConfig } from './config.js';
 import { createDatabase } from './db/index.js';
 import { createLogger } from './logger.js';
@@ -27,12 +29,22 @@ export async function startServer(): Promise<void> {
   const db = await createDatabase(config.DATABASE_URL);
   await db.migrate();
   const storage = createStorageAdapter(config);
+  const chain = new ChainClient(config);
+  const relayer = new ChainRelayWorker({
+    config,
+    logger,
+    db,
+    chain,
+  });
+  relayer.start();
 
   const app = createApp({
     config,
     logger,
     db,
     storage,
+    chain,
+    relayer,
   });
 
   const server = serve(
@@ -48,6 +60,8 @@ export async function startServer(): Promise<void> {
           port: info.port,
           dbDriver: db.driver,
           storageDriver: storage.driverName,
+          chainId: chain.chainId,
+          ledgerAddress: chain.ledgerAddress ?? null,
         },
         'TRACEB3 API server listening',
       );
@@ -61,6 +75,7 @@ export async function startServer(): Promise<void> {
     }
     shuttingDown = true;
     logger.info({ signal }, 'Shutting down TRACEB3 API server');
+    await relayer.stop();
     await new Promise<void>((resolve) => {
       server.close(() => resolve());
     });
