@@ -30,7 +30,8 @@ export interface DatabaseClient {
  * ensuring migrations work regardless of the process working directory.
  */
 export function resolveDefaultMigrationsFolder(): string {
-  return fileURLToPath(new URL('../../drizzle', import.meta.url));
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(currentDir, '..', '..', 'drizzle');
 }
 
 function assertMigrationsFolderExists(folder: string): string {
