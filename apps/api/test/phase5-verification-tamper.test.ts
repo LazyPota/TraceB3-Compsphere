@@ -316,6 +316,22 @@ describe('Phase 5 Verification, Public Passports, QR, Reconciler, Tamper Demo & 
     const seedJson = (await seedRes.json()) as { onChainRegisteredCount: number };
     expect(seedJson.onChainRegisteredCount).toBe(3);
 
+    // Partial single-role seed payload must pass Zod v4 validation cleanly
+    const partialSeedRes = await app.request('/v1/dev/seed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        wallets: {
+          AUDITOR: AUDITOR_ACCOUNT.address,
+        },
+      }),
+    });
+    expect(partialSeedRes.status).toBe(200);
+    const partialSeedJson = (await partialSeedRes.json()) as {
+      onChainRegisteredCount: number;
+    };
+    expect(partialSeedJson.onChainRegisteredCount).toBe(0);
+
     generatorToken = await signIn(app, GENERATOR_ACCOUNT, configFullDemo);
     transporterToken = await signIn(app, TRANSPORTER_ACCOUNT, configFullDemo);
     facilityToken = await signIn(app, FACILITY_ACCOUNT, configFullDemo);

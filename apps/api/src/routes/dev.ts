@@ -19,9 +19,17 @@ import {
 } from '../services/seed.js';
 import type { StorageAdapter } from '../storage/adapter.js';
 
+const DevSeedWalletsSchema = z.object({
+  ADMIN: z.string().optional(),
+  GENERATOR: z.string().optional(),
+  TRANSPORTER: z.string().optional(),
+  FACILITY: z.string().optional(),
+  AUDITOR: z.string().optional(),
+});
+
 const DevSeedBodySchema = z
   .object({
-    wallets: z.record(ActorRoleSchema, z.string()).optional(),
+    wallets: DevSeedWalletsSchema.optional(),
   })
   .optional();
 

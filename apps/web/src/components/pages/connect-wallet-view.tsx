@@ -146,7 +146,7 @@ export function ConnectWalletView() {
       const chainSyncNote =
         res.onChainRegisteredCount > 0 ? ' and synced on Base Sepolia' : '';
       setDemoNotice(
-        `Registered ${formatShortAddress(address)} as ${demoRole}${chainSyncNote}. Click Sign In with Wallet above to activate your session.`,
+        `Registered ${formatShortAddress(address)} as ${demoRole}${chainSyncNote}. Click Sign In with Wallet below to activate your session.`,
       );
     } catch (err) {
       setWalletError(
@@ -327,6 +327,50 @@ export function ConnectWalletView() {
               )}
             </div>
 
+            {webEnv.demoMode && walletConnected && address && (
+              <div className="rounded-xl border border-b3-amber/35 bg-warning-bg/55 p-4 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-ink">
+                    Demo Quick-Register Connected Wallet
+                  </span>
+                  <Badge tone="warning">DEMO_MODE</Badge>
+                </div>
+                <p className="text-xs text-ink-secondary">
+                  Assign <span className="font-data font-medium text-ink">{formatShortAddress(address)}</span>{' '}
+                  to any Jababeka role (and sync operational roles on-chain via gas-sponsored relayer)
+                  before signing in.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Select
+                    aria-label="Demo Role"
+                    value={demoRole}
+                    onChange={(e) => setDemoRole(e.target.value as ActorRole)}
+                    className="sm:w-44"
+                  >
+                    <option value="GENERATOR">GENERATOR</option>
+                    <option value="TRANSPORTER">TRANSPORTER</option>
+                    <option value="FACILITY">FACILITY</option>
+                    <option value="AUDITOR">AUDITOR</option>
+                    <option value="ADMIN">ADMIN</option>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    loading={isRegisteringDemo}
+                    onClick={() => void handleDemoRegister()}
+                    className="flex-1"
+                  >
+                    Register as {demoRole}
+                  </Button>
+                </div>
+                {demoNotice && (
+                  <p className="rounded-lg border border-verified/30 bg-verified-bg px-3 py-2 text-xs font-medium text-verified-fg">
+                    {demoNotice}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Step 3: SIWE Session */}
             <div className="rounded-xl border border-line bg-canvas p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-ink">
@@ -382,50 +426,6 @@ export function ConnectWalletView() {
                 </Button>
               )}
             </div>
-
-            {webEnv.demoMode && walletConnected && address && (
-              <div className="rounded-xl border border-b3-amber/35 bg-warning-bg/55 p-4 space-y-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-ink">
-                    Demo Quick-Register Connected Wallet
-                  </span>
-                  <Badge tone="warning">DEMO_MODE</Badge>
-                </div>
-                <p className="text-xs text-ink-secondary">
-                  Assign <span className="font-data font-medium text-ink">{formatShortAddress(address)}</span>{' '}
-                  to any Jababeka role (and sync operational roles on-chain via gas-sponsored relayer)
-                  before signing in.
-                </p>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Select
-                    aria-label="Demo Role"
-                    value={demoRole}
-                    onChange={(e) => setDemoRole(e.target.value as ActorRole)}
-                    className="sm:w-44"
-                  >
-                    <option value="GENERATOR">GENERATOR</option>
-                    <option value="TRANSPORTER">TRANSPORTER</option>
-                    <option value="FACILITY">FACILITY</option>
-                    <option value="AUDITOR">AUDITOR</option>
-                    <option value="ADMIN">ADMIN</option>
-                  </Select>
-                  <Button
-                    variant="outline"
-                    size="md"
-                    loading={isRegisteringDemo}
-                    onClick={() => void handleDemoRegister()}
-                    className="flex-1"
-                  >
-                    Register as {demoRole}
-                  </Button>
-                </div>
-                {demoNotice && (
-                  <p className="rounded-lg border border-verified/30 bg-verified-bg px-3 py-2 text-xs font-medium text-verified-fg">
-                    {demoNotice}
-                  </p>
-                )}
-              </div>
-            )}
 
             {(walletError || authError) && (
               <div

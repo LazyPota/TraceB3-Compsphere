@@ -42,4 +42,26 @@ describe('RFC 9457 error handling & API_ERROR_CODES coverage', () => {
     expect(parsed.code).toBe('CHAIN_UNAVAILABLE');
     expect(parsed.status).toBe(503);
   });
+
+  it('preserves specific FORBIDDEN_ROLE detail for unregistered wallets', async () => {
+    const res = new Response(
+      JSON.stringify({
+        type: 'https://traceb3.example/errors/FORBIDDEN_ROLE',
+        title: 'Forbidden',
+        status: 403,
+        code: 'FORBIDDEN_ROLE',
+        detail: 'Wallet address is not registered in the TRACEB3 B2B directory',
+      }),
+      {
+        status: 403,
+        headers: { 'Content-Type': 'application/problem+json' },
+      },
+    );
+
+    const parsed = await parseProblemResponse(res);
+    expect(parsed.code).toBe('FORBIDDEN_ROLE');
+    expect(parsed.userMessage).toBe(
+      'Wallet address is not registered in the TRACEB3 B2B directory',
+    );
+  });
 });

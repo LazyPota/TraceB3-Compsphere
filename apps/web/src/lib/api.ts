@@ -70,7 +70,8 @@ export class ApiProblemError extends Error {
     const userMessage =
       params.code === 'VALIDATION_ERROR' ||
       params.code === 'CHAIN_REVERT' ||
-      params.code === 'INVALID_TRANSITION'
+      params.code === 'INVALID_TRANSITION' ||
+      params.code === 'FORBIDDEN_ROLE'
         ? params.detail || fallback
         : fallback;
     super(params.detail || params.title || fallback);
