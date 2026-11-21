@@ -428,6 +428,33 @@ describe('Database Hardening, Migrations, RLS & Seed', () => {
     expect(memberRows).toHaveLength(5);
   });
 
+  it('supports partial single-wallet registration and role switching in seedDemoData', async () => {
+    const { db } = await createTestDb();
+    const demoWallet = '0xAA638C96AEBf82220aE8a3378fb0bE1072554304';
+    const normalizedWallet = demoWallet.toLowerCase();
+
+    const first = await seedDemoData(db, {
+      wallets: { GENERATOR: demoWallet },
+    });
+    const genMember = first.members.find((m) => m.role === 'GENERATOR');
+    expect(genMember?.walletAddress).toBe(normalizedWallet);
+    expect(genMember?.orgCode).toBe('JAB-GEN-01');
+
+    const switched = await seedDemoData(db, {
+      wallets: { TRANSPORTER: demoWallet },
+    });
+    const trnMember = switched.members.find((m) => m.role === 'TRANSPORTER');
+    expect(trnMember?.walletAddress).toBe(normalizedWallet);
+    expect(trnMember?.orgCode).toBe('JAB-TRN-01');
+
+    const activeRowsForWallet = await db
+      .select()
+      .from(members)
+      .where(eq(members.walletAddress, normalizedWallet));
+    expect(activeRowsForWallet).toHaveLength(1);
+    expect(activeRowsForWallet[0]?.role).toBe('TRANSPORTER');
+  });
+
   it('parses config defaults cleanly and redacts secrets in pino logger', async () => {
     const cfg = loadConfig({
       FRONTEND_ORIGINS: ' http://localhost:3000 , https://app.traceb3.local ',

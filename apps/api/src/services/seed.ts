@@ -186,17 +186,37 @@ export async function seedDemoData(
       seededOrgs.push(entry);
     }
 
-    const seededMembers: SeededMember[] = [];
+    const memberByRole = new Map<ActorRole, SeededMember>();
     let createdMembers = 0;
 
+    const toSeededMember = (
+      memberRow: typeof members.$inferSelect,
+      org: SeededOrganization,
+    ): SeededMember => ({
+      id: memberRow.id,
+      orgId: memberRow.orgId,
+      orgCode: org.code,
+      onChainOrgId: org.onChainOrgId,
+      walletAddress: memberRow.walletAddress,
+      displayName: memberRow.displayName,
+      role: memberRow.role,
+      status: memberRow.status,
+    });
+
+    // Pass 1: apply explicitly provided wallets first so single-wallet role switching
+    // moves an existing wallet row before Pass 2 populates remaining fallback roles.
     for (const def of DEMO_MEMBERS) {
+      const explicitWallet = options?.wallets?.[def.role];
+      if (!explicitWallet) {
+        continue;
+      }
+
       const org = orgMap.get(def.orgCode);
       if (!org) {
         throw new Error(`Seed organization missing for code "${def.orgCode}"`);
       }
 
-      const rawWallet = options?.wallets?.[def.role] ?? def.fallbackWallet;
-      const normalizedWallet = getAddress(rawWallet).toLowerCase();
+      const normalizedWallet = getAddress(explicitWallet).toLowerCase();
 
       const byWallet = await tx
         .select()
@@ -206,7 +226,21 @@ export async function seedDemoData(
 
       let memberRow = byWallet[0];
 
-      if (!memberRow) {
+      if (memberRow) {
+        const updated = await tx
+          .update(members)
+          .set({
+            orgId: org.id,
+            role: def.role,
+            displayName: def.displayName,
+            status: 'ACTIVE',
+            revokedAt: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(members.id, memberRow.id))
+          .returning();
+        memberRow = updated[0]!;
+      } else {
         const byRoleAndOrg = await tx
           .select()
           .from(members)
@@ -249,17 +283,64 @@ export async function seedDemoData(
         }
       }
 
-      seededMembers.push({
-        id: memberRow.id,
-        orgId: memberRow.orgId,
-        orgCode: org.code,
-        onChainOrgId: org.onChainOrgId,
-        walletAddress: memberRow.walletAddress,
-        displayName: memberRow.displayName,
-        role: memberRow.role,
-        status: memberRow.status,
-      });
+      memberByRole.set(def.role, toSeededMember(memberRow, org));
     }
+
+    // Pass 2: preserve or populate fallback members for roles not explicitly specified.
+    for (const def of DEMO_MEMBERS) {
+      if (memberByRole.has(def.role)) {
+        continue;
+      }
+
+      const org = orgMap.get(def.orgCode);
+      if (!org) {
+        throw new Error(`Seed organization missing for code "${def.orgCode}"`);
+      }
+
+      const byRoleAndOrg = await tx
+        .select()
+        .from(members)
+        .where(
+          and(
+            eq(members.orgId, org.id),
+            eq(members.role, def.role),
+            eq(members.displayName, def.displayName),
+          ),
+        )
+        .limit(1);
+
+      let memberRow = byRoleAndOrg[0];
+
+      if (!memberRow) {
+        const normalizedFallback = getAddress(def.fallbackWallet).toLowerCase();
+        const byWallet = await tx
+          .select()
+          .from(members)
+          .where(eq(members.walletAddress, normalizedFallback))
+          .limit(1);
+        memberRow = byWallet[0];
+
+        if (!memberRow) {
+          const inserted = await tx
+            .insert(members)
+            .values({
+              id: newId(),
+              orgId: org.id,
+              walletAddress: normalizedFallback,
+              displayName: def.displayName,
+              role: def.role,
+              status: 'ACTIVE',
+            })
+            .returning();
+          memberRow = inserted[0]!;
+          createdMembers += 1;
+        }
+      }
+
+      memberByRole.set(def.role, toSeededMember(memberRow, org));
+    }
+
+    const seededMembers = DEMO_MEMBERS.map((def) => memberByRole.get(def.role)!);
 
     return {
       organizations: seededOrgs,

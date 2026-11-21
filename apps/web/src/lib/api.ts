@@ -497,6 +497,33 @@ export interface AuditLogListResponse {
   offset: number;
 }
 
+export interface DevSeedRequest {
+  wallets?: Partial<Record<ActorRole, string>>;
+}
+
+export interface DevSeedResponse {
+  createdOrganizations: number;
+  createdMembers: number;
+  onChainRegisteredCount: number;
+  organizations: Array<{
+    id: string;
+    code: string;
+    name: string;
+    orgType: OrgType;
+    onChainOrgId: string;
+  }>;
+  members: Array<{
+    id: string;
+    orgId: string;
+    orgCode: string;
+    onChainOrgId: string;
+    walletAddress: string;
+    displayName: string;
+    role: ActorRole;
+    status: string;
+  }>;
+}
+
 export interface DevTamperRequest {
   mode: 'db' | 'file';
   batchId: string;
@@ -680,6 +707,13 @@ export const api = {
     apiRequest<ProofBundle>(
       `/v1/public/passports/${encodeURIComponent(publicId)}/proof-bundle`,
     ),
+
+  devSeed: (body?: DevSeedRequest) =>
+    apiRequest<DevSeedResponse>('/v1/dev/seed', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body ?? {}),
+    }),
 
   devTamper: (body: DevTamperRequest) =>
     apiRequest<DevTamperResponse>('/v1/dev/tamper', {

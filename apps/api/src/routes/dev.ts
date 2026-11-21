@@ -144,9 +144,20 @@ export function createDevRouter(deps: {
       wallets: body?.wallets,
     });
 
+    const requestedWalletRoles = body?.wallets
+      ? Object.entries(body.wallets)
+          .filter(([, value]) => typeof value === 'string' && value.trim().length > 0)
+          .map(([role]) => role as ActorRole)
+      : [];
+    const requestedRoles =
+      requestedWalletRoles.length > 0 ? new Set<ActorRole>(requestedWalletRoles) : null;
+
     let onChainRegisteredCount = 0;
     if (deps.chain.ledgerAddress && deps.chain.relayerAccount) {
       for (const member of seeded.members) {
+        if (requestedRoles && !requestedRoles.has(member.role)) {
+          continue;
+        }
         const onChainRole = OPERATIONAL_ROLE_TO_UINT8[member.role];
         if (!onChainRole) {
           continue;

@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import type { ActorRole } from '@traceb3/core';
 import {
   useConnect,
   useConnection,
@@ -22,7 +23,7 @@ import {
   ShieldCheck,
   Wallet,
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, ApiProblemError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatShortAddress } from '@/lib/b3-codes';
 import { webEnv } from '@/lib/env';
@@ -31,7 +32,10 @@ import { PublicHeader } from '@/components/layout/public-header';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Select } from '@/components/ui/select';
 import { WalletRoleBadge } from '@/components/domain/wallet-role-badge';
+
+const emptySubscribe = () => () => {};
 
 const DEMO_ROLE_GUIDE = [
   {
@@ -94,7 +98,13 @@ export function ConnectWalletView() {
       ? rawNext
       : '/dashboard';
 
+  const isHydrated = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false,
+  );
   const { address, chainId: activeChainId, isConnected } = useConnection();
+  const walletConnected = isHydrated && isConnected;
   const connectors = useConnectors();
   const namedConnectors = connectors.filter((c) => c.id !== 'injected');
   const visibleConnectors = (namedConnectors.length > 0 ? namedConnectors : connectors).filter(
@@ -107,6 +117,9 @@ export function ConnectWalletView() {
     useAuth();
 
   const [walletError, setWalletError] = useState<string | null>(null);
+  const [demoRole, setDemoRole] = useState<ActorRole>('GENERATOR');
+  const [isRegisteringDemo, setIsRegisteringDemo] = useState(false);
+  const [demoNotice, setDemoNotice] = useState<string | null>(null);
 
   const chainInfoQuery = useQuery({
     queryKey: ['chain-info'],
@@ -117,7 +130,36 @@ export function ConnectWalletView() {
   const targetChainId = chainInfoQuery.data?.chainId ?? webEnv.defaultChainId;
   const targetNetworkName =
     chainInfoQuery.data?.networkName ?? getChainDisplayName(targetChainId);
-  const chainMatches = isConnected && activeChainId === targetChainId;
+  const chainMatches = walletConnected && activeChainId === targetChainId;
+
+  const handleDemoRegister = async () => {
+    if (!address) return;
+    setWalletError(null);
+    setDemoNotice(null);
+    clearError();
+    setIsRegisteringDemo(true);
+    try {
+      if (isAuthenticated) {
+        signOut(false);
+      }
+      const res = await api.devSeed({ wallets: { [demoRole]: address } });
+      const chainSyncNote =
+        res.onChainRegisteredCount > 0 ? ' and synced on Base Sepolia' : '';
+      setDemoNotice(
+        `Registered ${formatShortAddress(address)} as ${demoRole}${chainSyncNote}. Click Sign In with Wallet above to activate your session.`,
+      );
+    } catch (err) {
+      setWalletError(
+        err instanceof ApiProblemError
+          ? err.userMessage
+          : err instanceof Error
+            ? err.message
+            : 'Demo wallet registration failed.',
+      );
+    } finally {
+      setIsRegisteringDemo(false);
+    }
+  };
 
   const handleConnect = async (connector: (typeof connectors)[number]) => {
     setWalletError(null);
@@ -181,21 +223,26 @@ export function ConnectWalletView() {
             <div className="rounded-xl border border-line bg-canvas p-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-sm font-semibold text-ink">
-                  {isConnected ? (
+                  {walletConnected ? (
                     <CheckCircle2 className="h-4 w-4 text-verified" />
                   ) : (
                     <Wallet className="h-4 w-4 text-brand" />
                   )}
                   <span>1. Connect Browser Wallet</span>
                 </div>
-                {isConnected && address && (
+                {walletConnected && address && (
                   <span className="font-data rounded bg-well px-2 py-0.5 text-xs font-medium text-ink">
                     {formatShortAddress(address)}
                   </span>
                 )}
               </div>
 
-              {isConnected ? (
+              {!isHydrated ? (
+                <Button size="md" variant="outline" disabled className="w-full">
+                  <Wallet className="h-4 w-4" />
+                  Detecting browser wallets...
+                </Button>
+              ) : walletConnected ? (
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs text-ink-secondary">
                     Wallet connected and ready for network check.
@@ -204,6 +251,7 @@ export function ConnectWalletView() {
                     size="sm"
                     variant="outline"
                     onClick={() => {
+                      setDemoNotice(null);
                       signOut(true);
                       disconnectWallet();
                     }}
@@ -252,7 +300,7 @@ export function ConnectWalletView() {
                 </Badge>
               </div>
 
-              {isConnected ? (
+              {walletConnected ? (
                 chainMatches ? (
                   <p className="text-xs text-verified-fg">
                     Active wallet network matches {targetNetworkName}.
@@ -325,7 +373,7 @@ export function ConnectWalletView() {
                   variant="primary"
                   size="md"
                   className="w-full"
-                  disabled={!isConnected}
+                  disabled={!walletConnected}
                   loading={isSigningIn}
                   onClick={() => void handleSiwe()}
                 >
@@ -334,6 +382,50 @@ export function ConnectWalletView() {
                 </Button>
               )}
             </div>
+
+            {webEnv.demoMode && walletConnected && address && (
+              <div className="rounded-xl border border-b3-amber/35 bg-warning-bg/55 p-4 space-y-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-ink">
+                    Demo Quick-Register Connected Wallet
+                  </span>
+                  <Badge tone="warning">DEMO_MODE</Badge>
+                </div>
+                <p className="text-xs text-ink-secondary">
+                  Assign <span className="font-data font-medium text-ink">{formatShortAddress(address)}</span>{' '}
+                  to any Jababeka role (and sync operational roles on-chain via gas-sponsored relayer)
+                  before signing in.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <Select
+                    aria-label="Demo Role"
+                    value={demoRole}
+                    onChange={(e) => setDemoRole(e.target.value as ActorRole)}
+                    className="sm:w-44"
+                  >
+                    <option value="GENERATOR">GENERATOR</option>
+                    <option value="TRANSPORTER">TRANSPORTER</option>
+                    <option value="FACILITY">FACILITY</option>
+                    <option value="AUDITOR">AUDITOR</option>
+                    <option value="ADMIN">ADMIN</option>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="md"
+                    loading={isRegisteringDemo}
+                    onClick={() => void handleDemoRegister()}
+                    className="flex-1"
+                  >
+                    Register as {demoRole}
+                  </Button>
+                </div>
+                {demoNotice && (
+                  <p className="rounded-lg border border-verified/30 bg-verified-bg px-3 py-2 text-xs font-medium text-verified-fg">
+                    {demoNotice}
+                  </p>
+                )}
+              </div>
+            )}
 
             {(walletError || authError) && (
               <div
