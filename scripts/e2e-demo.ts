@@ -239,7 +239,7 @@ async function uploadEvidence(
   label: string,
 ): Promise<string> {
   const form = new FormData();
-  form.append('file', new File([bytes], filename, { type: mime }));
+  form.append('file', new File([new Uint8Array(bytes)], filename, { type: mime }));
   form.append('label', label);
 
   const { status, data } = await apiJson<{ id: string }>(
@@ -459,7 +459,7 @@ async function main(): Promise<void> {
           wallets: {
             ADMIN: accounts.ADMIN.address,
             GENERATOR: accounts.GENERATOR.address,
-            TRANSPORTER: accounts.TRANSPOR.address,
+            TRANSPORTER: accounts.TRANSPORTER.address,
             FACILITY: accounts.FACILITY.address,
             AUDITOR: accounts.AUDITOR.address,
           },
