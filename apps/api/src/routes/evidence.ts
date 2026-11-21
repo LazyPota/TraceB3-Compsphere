@@ -145,67 +145,64 @@ export function createEvidenceRouter(deps: {
   router.use('/v1/batches/*/evidence', requireAuth, requireUploaderRole);
   router.use('/v1/evidence/*/download', requireAuth);
 
-  router.openapi(uploadEvidenceRoute, async (c) => {
-    const auth = getAuthContext(c);
-    const { id } = c.req.valid('param');
-    const form = c.req.valid('form');
-    const requestId =
-      typeof c.get('requestId') === 'string' ? c.get('requestId') : undefined;
+  return router
+    .openapi(uploadEvidenceRoute, async (c) => {
+      const auth = getAuthContext(c);
+      const { id } = c.req.valid('param');
+      const form = c.req.valid('form');
+      const requestId =
+        typeof c.get('requestId') === 'string' ? c.get('requestId') : undefined;
 
-    const uploaded = await ingestEvidenceUpload({
-      db: deps.db,
-      storage: deps.storage,
-      config: deps.config,
-      auth,
-      batchParam: id,
-      file: form.file,
-      label: form.label,
-      requestId,
+      const uploaded = await ingestEvidenceUpload({
+        db: deps.db,
+        storage: deps.storage,
+        config: deps.config,
+        auth,
+        batchParam: id,
+        file: form.file,
+        label: form.label,
+        requestId,
+      });
+
+      return c.json(uploaded, 201);
+    })
+    .openapi(downloadEvidenceRoute, async (c) => {
+      const auth = getAuthContext(c);
+      const { id } = c.req.valid('param');
+      const signed = await issueEvidenceDownloadUrl({
+        db: deps.db,
+        storage: deps.storage,
+        auth,
+        evidenceId: id,
+      });
+      return c.json(signed, 200);
+    })
+    .get('/v1/evidence/signed/:token', async (c) => {
+      const token = c.req.param('token');
+      let verified: ReturnType<typeof verifyLocalSignedToken>;
+      try {
+        verified = verifyLocalSignedToken(token, deps.config.JWT_SECRET);
+      } catch (err) {
+        throw AppError.unauthenticated(
+          err instanceof Error ? err.message : 'Invalid signed download token',
+        );
+      }
+
+      const stream = await deps.storage.getStream(verified.path);
+      if (!stream) {
+        throw AppError.notFound('Evidence blob no longer exists in storage');
+      }
+
+      const safeFilename = verified.filename.replace(/["\\\r\n]/g, '_');
+      const webStream = Readable.toWeb(stream) as ReadableStream;
+
+      return new Response(webStream, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename="${safeFilename}"`,
+          'Cache-Control': 'private, no-store',
+        },
+      });
     });
-
-    return c.json(uploaded, 201);
-  });
-
-  router.openapi(downloadEvidenceRoute, async (c) => {
-    const auth = getAuthContext(c);
-    const { id } = c.req.valid('param');
-    const signed = await issueEvidenceDownloadUrl({
-      db: deps.db,
-      storage: deps.storage,
-      auth,
-      evidenceId: id,
-    });
-    return c.json(signed, 200);
-  });
-
-  router.get('/v1/evidence/signed/:token', async (c) => {
-    const token = c.req.param('token');
-    let verified: ReturnType<typeof verifyLocalSignedToken>;
-    try {
-      verified = verifyLocalSignedToken(token, deps.config.JWT_SECRET);
-    } catch (err) {
-      throw AppError.unauthenticated(
-        err instanceof Error ? err.message : 'Invalid signed download token',
-      );
-    }
-
-    const stream = await deps.storage.getStream(verified.path);
-    if (!stream) {
-      throw AppError.notFound('Evidence blob no longer exists in storage');
-    }
-
-    const safeFilename = verified.filename.replace(/["\\\r\n]/g, '_');
-    const webStream = Readable.toWeb(stream) as ReadableStream;
-
-    return new Response(webStream, {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${safeFilename}"`,
-        'Cache-Control': 'private, no-store',
-      },
-    });
-  });
-
-  return router;
 }

@@ -223,7 +223,8 @@ export function createPublicRouter(deps: {
 }) {
   const router = new OpenAPIHono<{ Variables: { requestId?: string } }>();
 
-  router.openapi(getPublicPassportRoute, async (c) => {
+  return router
+    .openapi(getPublicPassportRoute, async (c) => {
     const { publicId } = c.req.valid('param');
     const batchRows = await deps.db.db
       .select()
@@ -334,9 +335,8 @@ export function createPublicRouter(deps: {
       },
       200,
     );
-  });
-
-  router.openapi(verifyPublicPassportRoute, async (c) => {
+  })
+    .openapi(verifyPublicPassportRoute, async (c) => {
     const { publicId } = c.req.valid('param');
     const requestId =
       typeof c.get('requestId') === 'string' ? c.get('requestId') : null;
@@ -366,9 +366,8 @@ export function createPublicRouter(deps: {
     });
 
     return c.json(result, 200);
-  });
-
-  router.openapi(proofBundleRoute, async (c) => {
+  })
+    .openapi(proofBundleRoute, async (c) => {
     const { publicId } = c.req.valid('param');
     const bundle = await buildPortableProofBundle({
       db: deps.db,
@@ -377,6 +376,4 @@ export function createPublicRouter(deps: {
     });
     return c.json(bundle, 200);
   });
-
-  return router;
 }

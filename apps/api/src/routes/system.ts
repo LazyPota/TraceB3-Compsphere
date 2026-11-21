@@ -84,38 +84,36 @@ export function createSystemRouter(deps: {
 }) {
   const router = new OpenAPIHono();
 
-  router.openapi(chainInfoRoute, (c) => {
-    return c.json(
-      {
-        chainId: deps.chain.chainId,
-        networkName: deps.chain.networkName,
-        ledgerAddress: deps.chain.ledgerAddress ?? null,
-        explorerBaseUrl: deps.chain.explorerBaseUrl,
-      },
-      200,
-    );
-  });
+  return router
+    .openapi(chainInfoRoute, (c) => {
+      return c.json(
+        {
+          chainId: deps.chain.chainId,
+          networkName: deps.chain.networkName,
+          ledgerAddress: deps.chain.ledgerAddress ?? null,
+          explorerBaseUrl: deps.chain.explorerBaseUrl,
+        },
+        200,
+      );
+    })
+    .openapi(readyzRoute, async (c) => {
+      const [database, storage, chain] = await Promise.all([
+        deps.db.healthCheck(),
+        deps.storage.healthCheck(),
+        deps.chain.readinessCheck(),
+      ]);
 
-  router.openapi(readyzRoute, async (c) => {
-    const [database, storage, chain] = await Promise.all([
-      deps.db.healthCheck(),
-      deps.storage.healthCheck(),
-      deps.chain.readinessCheck(),
-    ]);
+      const ready = database.ok && storage.ok && chain.ok;
+      const payload = {
+        status: ready ? ('ready' as const) : ('not_ready' as const),
+        timestamp: new Date().toISOString(),
+        checks: {
+          database,
+          storage,
+          chain,
+        },
+      };
 
-    const ready = database.ok && storage.ok && chain.ok;
-    const payload = {
-      status: ready ? ('ready' as const) : ('not_ready' as const),
-      timestamp: new Date().toISOString(),
-      checks: {
-        database,
-        storage,
-        chain,
-      },
-    };
-
-    return ready ? c.json(payload, 200) : c.json(payload, 503);
-  });
-
-  return router;
+      return ready ? c.json(payload, 200) : c.json(payload, 503);
+    });
 }

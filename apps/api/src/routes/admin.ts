@@ -191,7 +191,8 @@ export function createAdminRouter(deps: {
 
   router.use('/v1/admin/*', requireAuth, requireAdmin);
 
-  router.openapi(createOrgRoute, async (c) => {
+  return router
+    .openapi(createOrgRoute, async (c) => {
     const auth = getAuthContext(c);
     const body = c.req.valid('json');
     const requestId =
@@ -256,9 +257,8 @@ export function createAdminRouter(deps: {
       },
       201,
     );
-  });
-
-  router.openapi(createMemberRoute, async (c) => {
+  })
+    .openapi(createMemberRoute, async (c) => {
     const auth = getAuthContext(c);
     const body = c.req.valid('json');
     const requestId =
@@ -355,9 +355,8 @@ export function createAdminRouter(deps: {
       },
       201,
     );
-  });
-
-  router.openapi(updateMemberRoute, async (c) => {
+  })
+    .openapi(updateMemberRoute, async (c) => {
     const auth = getAuthContext(c);
     const { id } = c.req.valid('param');
     const body = c.req.valid('json');
@@ -464,6 +463,4 @@ export function createAdminRouter(deps: {
       200,
     );
   });
-
-  return router;
 }

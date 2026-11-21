@@ -432,7 +432,8 @@ export function createBatchesRouter(deps: {
     updatedAt: row.updatedAt.toISOString(),
   });
 
-  router.openapi(listBatchesRoute, async (c) => {
+  return router
+    .openapi(listBatchesRoute, async (c) => {
     const auth = getAuthContext(c);
     const query = c.req.valid('query');
     const requestId =
@@ -525,9 +526,8 @@ export function createBatchesRouter(deps: {
       },
       200,
     );
-  });
-
-  router.openapi(getBatchRoute, async (c) => {
+  })
+    .openapi(getBatchRoute, async (c) => {
     const auth = getAuthContext(c);
     const { id } = c.req.valid('param');
     const requestId =
@@ -546,9 +546,8 @@ export function createBatchesRouter(deps: {
     await assertBatchReadAccess(deps.db, auth, batch, requestId, 'AUDITOR_READ_BATCH');
     const orgMap = await loadOrganizationNameMap(deps.db);
     return c.json(formatBatch(batch, orgMap), 200);
-  });
-
-  router.openapi(getBatchTimelineRoute, async (c) => {
+  })
+    .openapi(getBatchTimelineRoute, async (c) => {
     const auth = getAuthContext(c);
     const { id } = c.req.valid('param');
     const requestId =
@@ -646,9 +645,8 @@ export function createBatchesRouter(deps: {
       },
       200,
     );
-  });
-
-  router.openapi(getBatchDiscrepanciesRoute, async (c) => {
+  })
+    .openapi(getBatchDiscrepanciesRoute, async (c) => {
     const auth = getAuthContext(c);
     const { id } = c.req.valid('param');
     const requestId =
@@ -702,9 +700,8 @@ export function createBatchesRouter(deps: {
       },
       200,
     );
-  });
-
-  router.openapi(getBatchQrRoute, async (c) => {
+  })
+    .openapi(getBatchQrRoute, async (c) => {
     const auth = getAuthContext(c);
     const { id } = c.req.valid('param');
     const { format } = c.req.valid('query');
@@ -750,9 +747,8 @@ export function createBatchesRouter(deps: {
         'Cache-Control': 'private, max-age=60',
       },
     });
-  });
-
-  router.openapi(listAuditLogsRoute, async (c) => {
+  })
+    .openapi(listAuditLogsRoute, async (c) => {
     const query = c.req.valid('query');
     const conditions = [];
     if (query.action) {
@@ -798,6 +794,4 @@ export function createBatchesRouter(deps: {
       200,
     );
   });
-
-  return router;
 }

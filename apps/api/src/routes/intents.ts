@@ -299,7 +299,8 @@ export function createIntentsRouter(deps: {
   router.use('/v1/intents/*', requireAuth, requireCustodyActor);
   router.use('/v1/events/*', requireAuth);
 
-  router.openapi(createIntentRoute, async (c) => {
+  return router
+    .openapi(createIntentRoute, async (c) => {
     const auth = getAuthContext(c);
     const body = c.req.valid('json');
     const created = await createCustodyIntent({
@@ -320,9 +321,8 @@ export function createIntentsRouter(deps: {
       },
       201,
     );
-  });
-
-  router.openapi(submitIntentRoute, async (c) => {
+  })
+    .openapi(submitIntentRoute, async (c) => {
     const auth = getAuthContext(c);
     const { id } = c.req.valid('param');
     const headers = c.req.valid('header');
@@ -340,9 +340,8 @@ export function createIntentsRouter(deps: {
       requestId,
     });
     return c.json(result, 202);
-  });
-
-  router.openapi(eventStatusRoute, async (c) => {
+  })
+    .openapi(eventStatusRoute, async (c) => {
     const auth = getAuthContext(c);
     const { id } = c.req.valid('param');
     const event = await loadAuthorizedEvent(deps.db, auth, id);
@@ -364,9 +363,8 @@ export function createIntentsRouter(deps: {
       },
       200,
     );
-  });
-
-  router.openapi(eventStreamRoute, async (c) => {
+  })
+    .openapi(eventStreamRoute, async (c) => {
     const auth = getAuthContext(c);
     const { id } = c.req.valid('param');
     const initial = await loadAuthorizedEvent(deps.db, auth, id);
@@ -495,6 +493,4 @@ export function createIntentsRouter(deps: {
       }
     });
   });
-
-  return router;
 }

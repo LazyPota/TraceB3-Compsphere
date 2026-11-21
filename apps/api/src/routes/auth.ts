@@ -108,42 +108,40 @@ export function createAuthRouter(deps: {
   const router = new OpenAPIHono<AuthEnv & { Variables: { requestId?: string } }>();
   const requireAuth = createRequireAuth(deps.config, deps.db);
 
-  router.openapi(nonceRoute, async (c) => {
-    const result = await issueSiweNonce(deps.db, deps.config);
-    return c.json(result, 200);
-  });
-
-  router.openapi(verifyRoute, async (c) => {
-    const body = c.req.valid('json');
-    const requestId =
-      typeof c.get('requestId') === 'string' ? c.get('requestId') : undefined;
-    const session = await verifySiweAndMintJwt(deps.db, deps.chain, deps.config, {
-      message: body.message,
-      signature: body.signature,
-      requestId,
-    });
-    return c.json(session, 200);
-  });
-
   router.use('/v1/auth/me', requireAuth);
-  router.openapi(meRoute, async (c) => {
-    const auth = getAuthContext(c);
-    return c.json(
-      {
-        member: {
-          id: auth.memberId,
-          orgId: auth.orgId,
-          orgName: auth.orgName,
-          orgType: auth.orgType,
-          onChainOrgId: auth.onChainOrgId,
-          walletAddress: auth.address,
-          displayName: auth.displayName,
-          role: auth.role,
-        },
-      },
-      200,
-    );
-  });
 
-  return router;
+  return router
+    .openapi(nonceRoute, async (c) => {
+      const result = await issueSiweNonce(deps.db, deps.config);
+      return c.json(result, 200);
+    })
+    .openapi(verifyRoute, async (c) => {
+      const body = c.req.valid('json');
+      const requestId =
+        typeof c.get('requestId') === 'string' ? c.get('requestId') : undefined;
+      const session = await verifySiweAndMintJwt(deps.db, deps.chain, deps.config, {
+        message: body.message,
+        signature: body.signature,
+        requestId,
+      });
+      return c.json(session, 200);
+    })
+    .openapi(meRoute, async (c) => {
+      const auth = getAuthContext(c);
+      return c.json(
+        {
+          member: {
+            id: auth.memberId,
+            orgId: auth.orgId,
+            orgName: auth.orgName,
+            orgType: auth.orgType,
+            onChainOrgId: auth.onChainOrgId,
+            walletAddress: auth.address,
+            displayName: auth.displayName,
+            role: auth.role,
+          },
+        },
+        200,
+      );
+    });
 }
