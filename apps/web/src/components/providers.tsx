@@ -6,6 +6,7 @@ import { WagmiProvider, type State } from 'wagmi';
 import { getWagmiConfig } from '@/lib/wagmi';
 import { AuthProvider } from '@/lib/auth';
 import { ToastProvider } from '@/components/ui/toast';
+import { DemoControlsDrawer } from '@/components/domain/demo-controls-drawer';
 
 export function Providers({
   children,
@@ -31,7 +32,10 @@ export function Providers({
     <WagmiProvider config={config} initialState={initialState}>
       <QueryClientProvider client={queryClient}>
         <ToastProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {children}
+            <DemoControlsDrawer />
+          </AuthProvider>
         </ToastProvider>
       </QueryClientProvider>
     </WagmiProvider>
