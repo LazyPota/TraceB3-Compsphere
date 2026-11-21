@@ -10,8 +10,40 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
+import { getAddress } from 'viem';
 import { createSiweMessage } from 'viem/siwe';
 import { useConnection, useDisconnect, useSignMessage } from 'wagmi';
+
+interface Eip1193ProviderLike {
+  request?: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+}
+
+function hasRpcCode(err: unknown, code: number): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  if ('code' in err && (err as { code?: unknown }).code === code) return true;
+  if ('cause' in err) return hasRpcCode((err as { cause?: unknown }).cause, code);
+  return false;
+}
+
+function formatAuthError(err: unknown): string {
+  if (err instanceof ApiProblemError) {
+    return err.userMessage;
+  }
+  const msg = err instanceof Error ? err.message : 'SIWE authentication failed.';
+  const lower = msg.toLowerCase();
+  if (hasRpcCode(err, 4100) || lower.includes('4100') || lower.includes('not been authorized')) {
+    return 'MetaMask has not authorized this account for this site yet. Unlock MetaMask, click Disconnect, then click Connect MetaMask and approve the account popup.';
+  }
+  if (
+    hasRpcCode(err, 4001) ||
+    lower.includes('4001') ||
+    lower.includes('user rejected') ||
+    lower.includes('user denied')
+  ) {
+    return 'Signature request was cancelled in your wallet.';
+  }
+  return msg;
+}
 import {
   api,
   ApiProblemError,
@@ -112,7 +144,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     readStoredSession,
     () => null,
   );
-  const { address, isConnected, status: connectionStatus } = useConnection();
+  const { address, connector, isConnected, status: connectionStatus } = useConnection();
   const { mutate: disconnectWallet } = useDisconnect();
   const { mutateAsync: signMessageAsync } = useSignMessage();
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -159,9 +191,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsSigningIn(true);
     setAuthError(null);
     try {
+      let signingAddress = getAddress(address);
+      if (connector && typeof connector.getProvider === 'function') {
+        const provider = (await connector.getProvider()) as Eip1193ProviderLike | undefined;
+        if (provider && typeof provider.request === 'function') {
+          const accounts = (await provider.request({
+            method: 'eth_requestAccounts',
+          })) as string[] | undefined;
+          if (
+            Array.isArray(accounts) &&
+            typeof accounts[0] === 'string' &&
+            accounts[0].startsWith('0x')
+          ) {
+            signingAddress = getAddress(accounts[0]);
+          }
+        }
+      }
+
       const { nonce, domain, chainId } = await api.getNonce();
       const message = createSiweMessage({
-        address,
+        address: signingAddress,
         chainId,
         domain,
         nonce,
@@ -169,7 +218,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         version: '1',
         statement: 'Sign in to TRACEB3 Digital Waste Passport',
       });
-      const signature = await signMessageAsync({ message });
+      const signature = await signMessageAsync({
+        account: signingAddress,
+        message,
+      });
       const verified = await api.verifySiwe(message, signature);
       writeStoredSession({
         token: verified.token,
@@ -178,18 +230,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
       return verified.member;
     } catch (err) {
-      const msg =
-        err instanceof ApiProblemError
-          ? err.userMessage
-          : err instanceof Error
-            ? err.message
-            : 'SIWE authentication failed.';
+      const msg = formatAuthError(err);
       setAuthError(msg);
-      throw err;
+      throw new Error(msg);
     } finally {
       setIsSigningIn(false);
     }
-  }, [address, signMessageAsync]);
+  }, [address, connector, signMessageAsync]);
 
   const value = useMemo<AuthContextValue>(
     () => ({

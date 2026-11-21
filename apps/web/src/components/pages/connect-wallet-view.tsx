@@ -61,6 +61,30 @@ const DEMO_ROLE_GUIDE = [
   },
 ] as const;
 
+function hasRpcCode(err: unknown, code: number): boolean {
+  if (typeof err !== 'object' || err === null) return false;
+  if ('code' in err && (err as { code?: unknown }).code === code) return true;
+  if ('cause' in err) return hasRpcCode((err as { cause?: unknown }).cause, code);
+  return false;
+}
+
+function formatWalletError(err: unknown, fallback: string): string {
+  const msg = err instanceof Error ? err.message : fallback;
+  const lower = msg.toLowerCase();
+  if (hasRpcCode(err, 4100) || lower.includes('4100') || lower.includes('not been authorized')) {
+    return 'Wallet account is not authorized for this site yet. Unlock MetaMask and approve the account connection popup.';
+  }
+  if (
+    hasRpcCode(err, 4001) ||
+    lower.includes('4001') ||
+    lower.includes('user rejected') ||
+    lower.includes('user denied')
+  ) {
+    return 'Request was cancelled in your wallet.';
+  }
+  return msg;
+}
+
 export function ConnectWalletView() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -72,6 +96,10 @@ export function ConnectWalletView() {
 
   const { address, chainId: activeChainId, isConnected } = useConnection();
   const connectors = useConnectors();
+  const namedConnectors = connectors.filter((c) => c.id !== 'injected');
+  const visibleConnectors = (namedConnectors.length > 0 ? namedConnectors : connectors).filter(
+    (connector, index, list) => list.findIndex((item) => item.id === connector.id) === index,
+  );
   const { mutateAsync: connectAsync, isPending: isConnecting } = useConnect();
   const { mutate: disconnectWallet } = useDisconnect();
   const { mutateAsync: switchChainAsync, isPending: isSwitching } = useSwitchChain();
@@ -97,9 +125,7 @@ export function ConnectWalletView() {
     try {
       await connectAsync({ connector });
     } catch (err) {
-      setWalletError(
-        err instanceof Error ? err.message : 'Wallet connection was cancelled.',
-      );
+      setWalletError(formatWalletError(err, 'Wallet connection was cancelled.'));
     }
   };
 
@@ -109,9 +135,10 @@ export function ConnectWalletView() {
       await switchChainAsync({ chainId: targetChainId });
     } catch (err) {
       setWalletError(
-        err instanceof Error
-          ? err.message
-          : `Could not switch wallet to ${targetNetworkName} (chainId ${targetChainId}).`,
+        formatWalletError(
+          err,
+          `Could not switch wallet to ${targetNetworkName} (chainId ${targetChainId}).`,
+        ),
       );
     }
   };
@@ -185,9 +212,9 @@ export function ConnectWalletView() {
                     Disconnect
                   </Button>
                 </div>
-              ) : connectors.length > 0 ? (
+              ) : visibleConnectors.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {connectors.map((connector) => (
+                  {visibleConnectors.map((connector) => (
                     <Button
                       key={connector.uid}
                       size="md"
