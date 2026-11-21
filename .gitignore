@@ -1,0 +1,31 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+*.tsbuildinfo
+coverage/
+
+# Environment & local secrets
+.env
+.env.local
+.env.demo
+.env.*.local
+
+# Local runtime state (PGlite, local storage uploads, logs)
+.data/
+storage/
+*.log
+
+# Hardhat build & deployment caches (keep packages/contracts/exports/ tracked!)
+packages/contracts/cache/
+packages/contracts/artifacts/
+packages/contracts/typechain-types/
+packages/contracts/ignition/deployments/
+
+# OS & editor artifacts
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
