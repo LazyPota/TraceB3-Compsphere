@@ -9,8 +9,9 @@ import {
   ReasonCodeSchema,
 } from '@traceb3/core';
 import { eq } from 'drizzle-orm';
+import { streamSSE } from 'hono/streaming';
 import type { ChainClient } from '../chain/client.js';
-import type { ChainRelayWorker } from '../chain/relayer.js';
+import type { ChainRelayWorker, EventStatusUpdate } from '../chain/relayer.js';
 import type { AppConfig } from '../config.js';
 import type { DatabaseClient } from '../db/index.js';
 import { batches, custodyEvents } from '../db/schema.js';
@@ -19,6 +20,7 @@ import {
   createRequireAuth,
   getAuthContext,
   requireRoles,
+  type AuthContext,
   type AuthEnv,
 } from '../middleware/auth.js';
 import {
@@ -197,6 +199,92 @@ const eventStatusRoute = createRoute({
   },
 });
 
+const eventStreamRoute = createRoute({
+  method: 'get',
+  path: '/v1/events/{id}/stream',
+  tags: ['Custody'],
+  summary: 'Subscribe to Server-Sent Events (SSE) for real-time event chain anchoring updates',
+  request: {
+    params: z.object({
+      id: z.string().uuid().openapi({ param: { name: 'id', in: 'path' } }),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'text/event-stream delivering status updates until ANCHORED or FAILED',
+      content: {
+        'text/event-stream': {
+          schema: z.string(),
+        },
+      },
+    },
+    401: {
+      description: 'Unauthenticated',
+      content: { 'application/problem+json': { schema: ProblemDetailsSchema } },
+    },
+    403: {
+      description: 'Forbidden organization access',
+      content: { 'application/problem+json': { schema: ProblemDetailsSchema } },
+    },
+    404: {
+      description: 'Event not found',
+      content: { 'application/problem+json': { schema: ProblemDetailsSchema } },
+    },
+  },
+});
+
+async function loadAuthorizedEvent(
+  db: DatabaseClient,
+  auth: AuthContext,
+  eventId: string,
+) {
+  const rows = await db.db
+    .select()
+    .from(custodyEvents)
+    .where(eq(custodyEvents.id, eventId))
+    .limit(1);
+  const event = rows[0];
+  if (!event) {
+    throw AppError.notFound(`Custody event ${eventId} not found`);
+  }
+
+  if (auth.role !== 'ADMIN' && auth.role !== 'AUDITOR') {
+    const batchRows = await db.db
+      .select()
+      .from(batches)
+      .where(eq(batches.id, event.batchId))
+      .limit(1);
+    const batch = batchRows[0];
+    const batchEvents = await db.db
+      .select({
+        actorOrgId: custodyEvents.actorOrgId,
+        fromOrgId: custodyEvents.fromOrgId,
+        toOrgId: custodyEvents.toOrgId,
+      })
+      .from(custodyEvents)
+      .where(eq(custodyEvents.batchId, event.batchId));
+
+    const allowed =
+      (batch &&
+        (batch.generatorOrgId === auth.orgId ||
+          batch.currentCustodianOrgId === auth.orgId)) ||
+      batchEvents.some(
+        (e) =>
+          e.actorOrgId === auth.orgId ||
+          e.fromOrgId === auth.orgId ||
+          e.toOrgId === auth.orgId,
+      );
+
+    if (!allowed) {
+      throw AppError.forbidden(
+        'Member organization is not authorized to view this event status',
+      );
+    }
+  }
+
+  return event;
+}
+
 export function createIntentsRouter(deps: {
   config: AppConfig;
   db: DatabaseClient;
@@ -257,50 +345,7 @@ export function createIntentsRouter(deps: {
   router.openapi(eventStatusRoute, async (c) => {
     const auth = getAuthContext(c);
     const { id } = c.req.valid('param');
-
-    const rows = await deps.db.db
-      .select()
-      .from(custodyEvents)
-      .where(eq(custodyEvents.id, id))
-      .limit(1);
-    const event = rows[0];
-    if (!event) {
-      throw AppError.notFound(`Custody event ${id} not found`);
-    }
-
-    if (auth.role !== 'ADMIN' && auth.role !== 'AUDITOR') {
-      const batchRows = await deps.db.db
-        .select()
-        .from(batches)
-        .where(eq(batches.id, event.batchId))
-        .limit(1);
-      const batch = batchRows[0];
-      const batchEvents = await deps.db.db
-        .select({
-          actorOrgId: custodyEvents.actorOrgId,
-          fromOrgId: custodyEvents.fromOrgId,
-          toOrgId: custodyEvents.toOrgId,
-        })
-        .from(custodyEvents)
-        .where(eq(custodyEvents.batchId, event.batchId));
-
-      const allowed =
-        (batch &&
-          (batch.generatorOrgId === auth.orgId ||
-            batch.currentCustodianOrgId === auth.orgId)) ||
-        batchEvents.some(
-          (e) =>
-            e.actorOrgId === auth.orgId ||
-            e.fromOrgId === auth.orgId ||
-            e.toOrgId === auth.orgId,
-        );
-
-      if (!allowed) {
-        throw AppError.forbidden(
-          'Member organization is not authorized to view this event status',
-        );
-      }
-    }
+    const event = await loadAuthorizedEvent(deps.db, auth, id);
 
     return c.json(
       {
@@ -319,6 +364,136 @@ export function createIntentsRouter(deps: {
       },
       200,
     );
+  });
+
+  router.openapi(eventStreamRoute, async (c) => {
+    const auth = getAuthContext(c);
+    const { id } = c.req.valid('param');
+    const initial = await loadAuthorizedEvent(deps.db, auth, id);
+
+    return streamSSE(c, async (stream) => {
+      const formatPayload = (u: {
+        eventId: string;
+        batchId: string;
+        seq: number;
+        chainStatus: string;
+        txHash: string | null;
+        blockNumber: number | null;
+        anchoredAt: string | null;
+        failureReason: string | null;
+      }) =>
+        JSON.stringify({
+          ...u,
+          explorerUrl: u.txHash ? deps.chain.getExplorerTxUrl(u.txHash) : null,
+        });
+
+      await stream.writeSSE({
+        event: 'status',
+        data: formatPayload({
+          eventId: initial.id,
+          batchId: initial.batchId,
+          seq: initial.seq,
+          chainStatus: initial.chainStatus,
+          txHash: initial.txHash,
+          blockNumber: initial.blockNumber,
+          anchoredAt: initial.anchoredAt
+            ? initial.anchoredAt.toISOString()
+            : null,
+          failureReason: initial.failureReason,
+        }),
+      });
+
+      if (
+        initial.chainStatus === 'ANCHORED' ||
+        initial.chainStatus === 'FAILED'
+      ) {
+        return;
+      }
+
+      let closed = false;
+      let finishStream!: () => void;
+      const donePromise = new Promise<void>((resolve) => {
+        finishStream = resolve;
+      });
+
+      const unsubscribe = deps.relayer.onEventUpdate(
+        initial.id,
+        (update: EventStatusUpdate) => {
+          if (closed) return;
+          void stream
+            .writeSSE({
+              event: 'status',
+              data: formatPayload(update),
+            })
+            .then(() => {
+              if (
+                update.chainStatus === 'ANCHORED' ||
+                update.chainStatus === 'FAILED'
+              ) {
+                closed = true;
+                finishStream();
+              }
+            })
+            .catch(() => {
+              closed = true;
+              finishStream();
+            });
+        },
+      );
+
+      const pingTimer = setInterval(() => {
+        if (!closed) {
+          void stream.writeSSE({ event: 'ping', data: '{}' }).catch(() => {
+            closed = true;
+            finishStream();
+          });
+        }
+      }, 15_000);
+      pingTimer.unref();
+
+      const maxTimer = setTimeout(() => {
+        closed = true;
+        finishStream();
+      }, 60_000);
+      maxTimer.unref();
+
+      stream.onAbort(() => {
+        closed = true;
+        finishStream();
+      });
+
+      try {
+        // Re-check DB once after subscribing to prevent missing an anchor completed during subscription setup
+        const latest = await loadAuthorizedEvent(deps.db, auth, id);
+        if (
+          latest.chainStatus === 'ANCHORED' ||
+          latest.chainStatus === 'FAILED'
+        ) {
+          await stream.writeSSE({
+            event: 'status',
+            data: formatPayload({
+              eventId: latest.id,
+              batchId: latest.batchId,
+              seq: latest.seq,
+              chainStatus: latest.chainStatus,
+              txHash: latest.txHash,
+              blockNumber: latest.blockNumber,
+              anchoredAt: latest.anchoredAt
+                ? latest.anchoredAt.toISOString()
+                : null,
+              failureReason: latest.failureReason,
+            }),
+          });
+          return;
+        }
+
+        await donePromise;
+      } finally {
+        clearInterval(pingTimer);
+        clearTimeout(maxTimer);
+        unsubscribe();
+      }
+    });
   });
 
   return router;

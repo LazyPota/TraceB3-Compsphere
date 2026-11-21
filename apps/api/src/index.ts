@@ -4,6 +4,7 @@ export {
   type AppDeps,
   type AppEnv,
   type AppType,
+  type RateLimitConfigOverrides,
 } from './app.js';
 export {
   ChainClient,
@@ -45,6 +46,11 @@ export {
 } from './db/schema.js';
 export { AppError, problemResponse, type AppErrorOptions } from './errors.js';
 export {
+  ChainReconciler,
+  type ChainReconcilerDeps,
+  type ReconcileResult,
+} from './jobs/reconciler.js';
+export {
   createLogger,
   LOGGER_REDACT_PATHS,
   type CreateLoggerOptions,
@@ -58,6 +64,15 @@ export {
   type AuthEnv,
 } from './middleware/auth.js';
 export {
+  createRateLimiter,
+  type RateLimiterOptions,
+} from './middleware/rate-limit.js';
+export {
+  verifyProofBundleAgainstRpc,
+  type BundleEventCheckResult,
+  type BundleVerificationResult,
+} from './services/bundle-verifier.js';
+export {
   markMemberOnChainRegistered,
   seedDemoData,
   type SeedDemoDataOptions,
@@ -65,6 +80,14 @@ export {
   type SeededMember,
   type SeededOrganization,
 } from './services/seed.js';
+export {
+  buildPortableProofBundle,
+  verifyBatchIntegrity,
+  type AffectedEventIssue,
+  type AffectedFileIssue,
+  type BatchVerificationResult,
+  type EventVerificationDetail,
+} from './services/verification.js';
 export {
   createStorageAdapter,
   LocalFsStorage,

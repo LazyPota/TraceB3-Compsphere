@@ -8,6 +8,7 @@ import { ChainClient } from './chain/client.js';
 import { ChainRelayWorker } from './chain/relayer.js';
 import { loadConfig } from './config.js';
 import { createDatabase } from './db/index.js';
+import { ChainReconciler } from './jobs/reconciler.js';
 import { createLogger } from './logger.js';
 import { createStorageAdapter } from './storage/index.js';
 
@@ -36,7 +37,14 @@ export async function startServer(): Promise<void> {
     db,
     chain,
   });
+  const reconciler = new ChainReconciler({
+    config,
+    logger,
+    db,
+    chain,
+  });
   relayer.start();
+  reconciler.start();
 
   const app = createApp({
     config,
@@ -62,6 +70,7 @@ export async function startServer(): Promise<void> {
           storageDriver: storage.driverName,
           chainId: chain.chainId,
           ledgerAddress: chain.ledgerAddress ?? null,
+          demoMode: config.DEMO_MODE,
         },
         'TRACEB3 API server listening',
       );
@@ -75,6 +84,7 @@ export async function startServer(): Promise<void> {
     }
     shuttingDown = true;
     logger.info({ signal }, 'Shutting down TRACEB3 API server');
+    reconciler.stop();
     await relayer.stop();
     await new Promise<void>((resolve) => {
       server.close(() => resolve());

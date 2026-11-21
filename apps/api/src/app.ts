@@ -12,10 +12,14 @@ import type { DatabaseClient } from './db/index.js';
 import { AppError, problemResponse } from './errors.js';
 import type { Logger } from './logger.js';
 import type { AuthContext } from './middleware/auth.js';
+import { createRateLimiter } from './middleware/rate-limit.js';
 import { createAdminRouter } from './routes/admin.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createBatchesRouter } from './routes/batches.js';
+import { createDevRouter } from './routes/dev.js';
 import { createEvidenceRouter } from './routes/evidence.js';
 import { createIntentsRouter } from './routes/intents.js';
+import { createPublicRouter } from './routes/public.js';
 import { createSystemRouter } from './routes/system.js';
 import type { StorageAdapter } from './storage/index.js';
 
@@ -27,6 +31,12 @@ export interface AppEnv {
   };
 }
 
+export interface RateLimitConfigOverrides {
+  windowMs?: number;
+  publicMax?: number;
+  authMax?: number;
+}
+
 export interface AppDeps {
   config: AppConfig;
   logger: Logger;
@@ -34,6 +44,7 @@ export interface AppDeps {
   storage: StorageAdapter;
   chain?: ChainClient;
   relayer?: ChainRelayWorker;
+  rateLimits?: RateLimitConfigOverrides;
 }
 
 const ComponentCheckSchema = z.object({
@@ -81,7 +92,7 @@ const healthRoute = createRoute({
 
 /**
  * Builds the configured Hono OpenAPI application with security headers, CORS,
- * structured request logging, RFC 9457 error handling, OpenAPI 3.1 spec, and Scalar docs.
+ * rate limiting, structured request logging, RFC 9457 error handling, OpenAPI 3.1 spec, and Scalar docs.
  */
 export function createApp(deps: AppDeps) {
   const allowedOrigins = new Set(deps.config.FRONTEND_ORIGINS);
@@ -94,6 +105,18 @@ export function createApp(deps: AppDeps) {
       db: deps.db,
       chain,
     });
+
+  const windowMs = deps.rateLimits?.windowMs ?? 60_000;
+  const authRateLimiter = createRateLimiter({
+    windowMs,
+    maxRequests: deps.rateLimits?.authMax ?? 60,
+    keyPrefix: 'auth',
+  });
+  const publicRateLimiter = createRateLimiter({
+    windowMs,
+    maxRequests: deps.rateLimits?.publicMax ?? 120,
+    keyPrefix: 'public',
+  });
 
   const baseApp = new OpenAPIHono<AppEnv>({
     defaultHook: (result, c) => {
@@ -125,7 +148,7 @@ export function createApp(deps: AppDeps) {
         'Idempotency-Key',
         'X-Request-Id',
       ],
-      exposeHeaders: ['X-Request-Id', 'Content-Disposition'],
+      exposeHeaders: ['X-Request-Id', 'Content-Disposition', 'Retry-After'],
       credentials: true,
       maxAge: 600,
     }),
@@ -146,6 +169,9 @@ export function createApp(deps: AppDeps) {
       'HTTP request completed',
     );
   });
+
+  baseApp.use('/v1/auth/*', authRateLimiter);
+  baseApp.use('/v1/public/*', publicRateLimiter);
 
   baseApp.notFound((c) =>
     problemResponse(
@@ -181,9 +207,11 @@ export function createApp(deps: AppDeps) {
               ? 'FORBIDDEN_ROLE'
               : status === 404
                 ? 'NOT_FOUND'
-                : status >= 500
-                  ? 'INTERNAL_ERROR'
-                  : 'VALIDATION_ERROR',
+                : status === 429
+                  ? 'RATE_LIMITED'
+                  : status >= 500
+                    ? 'INTERNAL_ERROR'
+                    : 'VALIDATION_ERROR',
         title: err.message || 'HTTP Error',
         detail: err.message || 'Request failed',
       });
@@ -202,7 +230,7 @@ export function createApp(deps: AppDeps) {
     return problemResponse(c, AppError.internal());
   });
 
-  const typedApp = baseApp
+  const coreApp = baseApp
     .openapi(healthRoute, async (c) => {
       const [database, storage] = await Promise.all([
         deps.db.healthCheck(),
@@ -262,15 +290,44 @@ export function createApp(deps: AppDeps) {
         chain,
         relayer,
       }),
+    )
+    .route(
+      '/',
+      createBatchesRouter({
+        config: deps.config,
+        db: deps.db,
+        chain,
+      }),
+    )
+    .route(
+      '/',
+      createPublicRouter({
+        config: deps.config,
+        db: deps.db,
+        storage: deps.storage,
+        chain,
+      }),
     );
 
-  typedApp.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
+  if (deps.config.DEMO_MODE) {
+    coreApp.route(
+      '/',
+      createDevRouter({
+        db: deps.db,
+        storage: deps.storage,
+        chain,
+        relayer,
+      }),
+    );
+  }
+
+  coreApp.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
     type: 'http',
     scheme: 'bearer',
     bearerFormat: 'JWT',
   });
 
-  typedApp.doc31('/openapi.json', {
+  coreApp.doc31('/openapi.json', {
     openapi: '3.1.0',
     info: {
       title: 'TRACEB3 Digital Waste Passport API',
@@ -280,7 +337,7 @@ export function createApp(deps: AppDeps) {
     },
   });
 
-  typedApp.get(
+  coreApp.get(
     '/docs',
     Scalar({
       url: '/openapi.json',
@@ -288,7 +345,7 @@ export function createApp(deps: AppDeps) {
     }),
   );
 
-  return typedApp;
+  return coreApp;
 }
 
 export type AppType = ReturnType<typeof createApp>;
