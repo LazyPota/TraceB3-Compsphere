@@ -11,8 +11,14 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
     "test": "vitest run --passWithNoTests",
     "clean": "node -e \"import('node:fs').then(fs => fs.rmSync('dist', { recursive: true, force: true }))\""
+  },
+  "dependencies": {
+    "@traceb3/api": "workspace:*",
+    "@traceb3/contracts": "workspace:*",
+    "@traceb3/core": "workspace:*",
+    "hono": "^4.7.0"
   }
 }
