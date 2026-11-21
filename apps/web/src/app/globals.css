@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+/*
+ * TRACEB3 design tokens (light mode only — optimized for outdoor QR scanning and printed labels).
+ * Fonts are injected by next/font as --font-inter / --font-jetbrains-mono on <html>.
+ */
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, monospace;
+}
+
+@theme {
+  /* Brand */
+  --color-brand: #0f3d3e;
+  --color-brand-hover: #0b2e2f;
+  --color-brand-tint: #f0fdfa;
+  --color-slate-secondary: #334155;
+  --color-b3-amber: #d97706;
+
+  /* Surfaces */
+  --color-canvas: #f8fafc;
+  --color-surface: #ffffff;
+  --color-well: #f1f5f9;
+
+  /* Text */
+  --color-ink: #0f172a;
+  --color-ink-secondary: #475569;
+  --color-ink-muted: #64748b;
+
+  /* Borders */
+  --color-line: #e2e8f0;
+  --color-line-input: #cbd5e1;
+
+  /* Semantic: verified / warning / critical / on-chain */
+  --color-verified: #059669;
+  --color-verified-bg: #ecfdf5;
+  --color-verified-fg: #065f46;
+  --color-warning: #b45309;
+  --color-warning-bg: #fffbeb;
+  --color-warning-fg: #92400e;
+  --color-critical: #dc2626;
+  --color-critical-bg: #fef2f2;
+  --color-critical-fg: #991b1b;
+  --color-chain: #1d4ed8;
+  --color-chain-bg: #eff6ff;
+  --color-chain-fg: #1e40af;
+
+  --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+  --shadow-raised: 0 10px 30px -12px rgb(15 61 62 / 0.25);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-chain);
+    outline-offset: 2px;
+  }
+}
+
+@utility font-data {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Print: only elements marked .print-area are printed (QR waste passport labels). */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+
+  .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+  }
+}

@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import type { AppType } from '@traceb3/api';
 import { hc } from 'hono/client';
 
@@ -43,6 +42,3 @@ export function createTraceB3Client(
 }
 
 export type TraceB3Client = ReturnType<typeof createTraceB3Client>;
-
-// Keep ESM unused import check quiet if createRequire is not needed
-void createRequire;

@@ -47,3 +47,22 @@ This file records engineering defaults chosen in accordance with the TRACEB3 ope
 
 10. **Local Dev Ephemeral Contract Deployments:**
     - **Decision:** `pnpm dev:all` and `--self-hosted` demo scripts deploy `TraceB3Ledger` dynamically from compiled artifacts and pass `LEDGER_ADDRESS` via environment/`.env.demo` without mutating tracked `packages/contracts/exports/addresses.json` (which records persistent deployments such as Base Sepolia).
+
+---
+
+## Frontend (`apps/web`) Decisions
+
+Decisions confirmed by the product owner (2026-11-21):
+
+11. **Additive public discovery endpoints (approved):** `GET /v1/public/passports` (recent redacted list) and `GET /v1/public/lookup?q=` (resolves `batchRef` / `publicId` / `txHash` to a `publicId`). These are read-only, redacted, and rate-limited. No existing route, EIP-712 type, or contract ABI changes.
+12. **Mockup-only batch fields go into the hashed `notes` field (approved):** container count/type, lab summary and lab report ref have no API column. The web form serializes them into a structured `notes` block, so they are part of the RFC 8785 canonical record and therefore tamper-evident. The origin facility is always the signed-in generator's own organization.
+13. **Revision scope (approved):** revisions change `quantity` and `notes` only, using the backend's five reason codes (`SCALE_RECALIBRATION`, `UNIT_CORRECTION`, `DATA_ENTRY_ERROR`, `MANIFEST_AMENDMENT`, `OTHER`) with friendly labels. Waste code and description are shown as locked fields.
+
+Engineering defaults:
+
+14. **Stack (verified on npm 2026-11-21):** Next.js 16.4 (Turbopack, async `params`), React 19.3, Tailwind CSS v4.3 (`@theme` tokens in `globals.css`, no JS config), wagmi 3.7 (`ssr: true` + `cookieStorage`; connectors from `wagmi/connectors/*` subpaths), viem 2.58, TanStack Query 5, `@yudiel/react-qr-scanner` (chosen over the unmaintained `html5-qrcode`).
+15. **Separate ESLint config for `apps/web`:** `apps/web/eslint.config.mjs` uses `eslint-config-next` (core-web-vitals + typescript). The root config ignores `apps/web/**`, and root `pnpm lint` runs both.
+16. **Light mode only:** tokens are tuned for bright outdoor scanning and printed labels (WCAG 2.2 AA). No dark theme.
+17. **Session storage for the JWT:** the SIWE JWT is kept in `sessionStorage` plus memory, bound to the wallet address, and cleared on account change or `401`. Client route guards are UX only; the API enforces every permission again.
+18. **Backend env alignment:** the API's `SIWE_DOMAIN` must equal the web host (e.g. `localhost:3000`), `FRONTEND_ORIGINS` must include the web origin, and `PUBLIC_APP_URL` must point at the web app so QR codes open `/p/[publicId]`.
+19. **`@traceb3/sdk` browser safety:** removed an unused `node:module` import so the SDK can be bundled for the browser.

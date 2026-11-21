@@ -11,6 +11,8 @@ export default tseslint.config(
       '**/.data/**',
       'apps/api/drizzle/**',
       '**/coverage/**',
+      // apps/web has its own Next.js flat config (eslint-config-next); linted via `pnpm --filter web lint`.
+      'apps/web/**',
     ],
   },
   js.configs.recommended,

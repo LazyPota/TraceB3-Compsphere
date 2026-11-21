@@ -6,3 +6,9 @@ allowBuilds:
   esbuild: true
   keccak: true
   secp256k1: true
+
+minimumReleaseAgeExclude:
+  - "@hookform/resolvers@7.0.8"
+  - "@tanstack/query-core@5.108.2"
+  - "@tanstack/react-query@5.108.2"
+  - viem@2.58.4
