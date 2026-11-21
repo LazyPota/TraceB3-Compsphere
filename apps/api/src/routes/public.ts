@@ -15,7 +15,7 @@ import {
   ReasonCodeSchema,
   type DiscrepancyEventInput,
 } from '@traceb3/core';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import type { ChainClient } from '../chain/client.js';
 import type { AppConfig } from '../config.js';
 import type { DatabaseClient } from '../db/index.js';
@@ -136,6 +136,103 @@ const VerificationResponseSchema = z.object({
   ),
 });
 
+const PublicPassportSummarySchema = z.object({
+  batchId: z.string().uuid(),
+  publicId: z.string(),
+  batchRef: z.string(),
+  wasteCode: z.string(),
+  wasteName: z.string(),
+  status: BatchStatusSchema,
+  generatorOrgName: z.string().nullable(),
+  currentCustodianOrgName: z.string().nullable(),
+  hasDiscrepancy: z.boolean(),
+  maxDiscrepancySeverity: DiscrepancySeveritySchema,
+  latestEventSeq: z.number().int().nonnegative(),
+  latestEventHash: z.string(),
+  hasRevisions: z.boolean(),
+  declaredWeightGrams: z.string().nullable(),
+  effectiveWeights: z.object({
+    declaredGrams: z.string().nullable(),
+    pickupGrams: z.string().nullable(),
+    deliveryGrams: z.string().nullable(),
+  }),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const PublicPassportListResponseSchema = z.object({
+  viewLevel: PublicViewLevelSchema,
+  items: z.array(PublicPassportSummarySchema),
+  total: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  offset: z.number().int().nonnegative(),
+});
+
+const PublicLookupResponseSchema = z.object({
+  publicId: z.string(),
+  batchId: z.string().uuid(),
+  batchRef: z.string(),
+  matchedBy: z.enum([
+    'publicId',
+    'batchRef',
+    'batchId',
+    'txHash',
+    'eventHash',
+    'onChainBatchId',
+  ]),
+});
+
+const listPublicPassportsRoute = createRoute({
+  method: 'get',
+  path: '/v1/public/passports',
+  tags: ['Public'],
+  summary: 'List recent public waste passports (redacted or full per PUBLIC_VIEW_LEVEL)',
+  request: {
+    query: z.object({
+      limit: z.coerce.number().int().min(1).max(50).default(20),
+      offset: z.coerce.number().int().min(0).default(0),
+      flagged: z.enum(['true', 'false']).optional(),
+      status: BatchStatusSchema.optional(),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Paginated list of public waste passports',
+      content: { 'application/json': { schema: PublicPassportListResponseSchema } },
+    },
+    429: {
+      description: 'Rate limited',
+      content: { 'application/problem+json': { schema: ProblemDetailsSchema } },
+    },
+  },
+});
+
+const lookupPublicPassportRoute = createRoute({
+  method: 'get',
+  path: '/v1/public/lookup',
+  tags: ['Public'],
+  summary: 'Resolve a publicId, batchRef, batch UUID, txHash, eventHash, or onChainBatchId to a public passport',
+  request: {
+    query: z.object({
+      q: z.string().trim().min(1).max(128),
+    }),
+  },
+  responses: {
+    200: {
+      description: 'Resolved public passport reference',
+      content: { 'application/json': { schema: PublicLookupResponseSchema } },
+    },
+    404: {
+      description: 'No matching passport found',
+      content: { 'application/problem+json': { schema: ProblemDetailsSchema } },
+    },
+    429: {
+      description: 'Rate limited',
+      content: { 'application/problem+json': { schema: ProblemDetailsSchema } },
+    },
+  },
+});
+
 const getPublicPassportRoute = createRoute({
   method: 'get',
   path: '/v1/public/passports/{publicId}',
@@ -224,6 +321,235 @@ export function createPublicRouter(deps: {
   const router = new OpenAPIHono<{ Variables: { requestId?: string } }>();
 
   return router
+    .openapi(listPublicPassportsRoute, async (c) => {
+      const query = c.req.valid('query');
+      const conditions: SQL[] = [];
+      if (query.flagged === 'true') {
+        conditions.push(eq(batches.hasDiscrepancy, true));
+      } else if (query.flagged === 'false') {
+        conditions.push(eq(batches.hasDiscrepancy, false));
+      }
+      if (query.status) {
+        conditions.push(eq(batches.status, query.status));
+      }
+      const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+      const [rows, countRows, orgMap] = await Promise.all([
+        deps.db.db
+          .select()
+          .from(batches)
+          .where(whereClause)
+          .orderBy(desc(batches.updatedAt))
+          .limit(query.limit)
+          .offset(query.offset),
+        deps.db.db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(batches)
+          .where(whereClause),
+        loadOrganizationNameMap(deps.db),
+      ]);
+
+      const pageIds = rows.map((b) => b.id);
+      const eventRows =
+        pageIds.length > 0
+          ? await deps.db.db
+              .select()
+              .from(custodyEvents)
+              .where(inArray(custodyEvents.batchId, pageIds))
+              .orderBy(asc(custodyEvents.seq))
+          : [];
+
+      const eventsByBatch = new Map<string, typeof eventRows>();
+      for (const ev of eventRows) {
+        if (ev.chainStatus === 'FAILED') continue;
+        const list = eventsByBatch.get(ev.batchId) ?? [];
+        list.push(ev);
+        eventsByBatch.set(ev.batchId, list);
+      }
+
+      const isFull = deps.config.PUBLIC_VIEW_LEVEL === 'full';
+      const items = rows.map((batch) => {
+        const activeEvents = eventsByBatch.get(batch.id) ?? [];
+        const hasRevisions = activeEvents.some((ev) => ev.eventType === 'REVISION');
+
+        let effectiveWeights = {
+          declaredGrams: null as string | null,
+          pickupGrams: null as string | null,
+          deliveryGrams: null as string | null,
+        };
+        if (isFull && activeEvents.length > 0) {
+          const report = evaluateDiscrepancies(
+            activeEvents.map((ev) => ({
+              id: ev.id,
+              seq: ev.seq,
+              type: ev.eventType,
+              quantity: ev.record.quantity,
+              targetSeq: ev.targetSeq,
+              reasonCode: ev.reasonCode,
+              anchoredAt: ev.anchoredAt,
+              chainStatus: ev.chainStatus,
+            })),
+            {
+              weightTolerancePct: deps.config.WEIGHT_TOLERANCE_PCT,
+              custodyGapHours: deps.config.CUSTODY_GAP_HOURS,
+            },
+          );
+          effectiveWeights = report.effectiveWeights;
+        }
+
+        return {
+          batchId: batch.id,
+          publicId: batch.publicId,
+          batchRef: batch.batchRef,
+          wasteCode: batch.wasteCode,
+          wasteName: batch.wasteName,
+          status: batch.status,
+          generatorOrgName: orgMap.get(batch.generatorOrgId)?.name ?? null,
+          currentCustodianOrgName: batch.currentCustodianOrgId
+            ? (orgMap.get(batch.currentCustodianOrgId)?.name ?? null)
+            : null,
+          hasDiscrepancy: batch.hasDiscrepancy,
+          maxDiscrepancySeverity: batch.maxDiscrepancySeverity,
+          latestEventSeq: batch.latestEventSeq,
+          latestEventHash: batch.latestEventHash,
+          hasRevisions,
+          declaredWeightGrams: isFull ? batch.declaredWeightGrams : null,
+          effectiveWeights,
+          createdAt: batch.createdAt.toISOString(),
+          updatedAt: batch.updatedAt.toISOString(),
+        };
+      });
+
+      return c.json(
+        {
+          viewLevel: deps.config.PUBLIC_VIEW_LEVEL,
+          items,
+          total: countRows[0]?.count ?? items.length,
+          limit: query.limit,
+          offset: query.offset,
+        },
+        200,
+      );
+    })
+    .openapi(lookupPublicPassportRoute, async (c) => {
+      const { q } = c.req.valid('query');
+      const normalized = q.trim();
+      const lower = normalized.toLowerCase();
+
+      const byPublicId = (
+        await deps.db.db
+          .select()
+          .from(batches)
+          .where(eq(batches.publicId, normalized))
+          .limit(1)
+      )[0];
+      if (byPublicId) {
+        return c.json(
+          {
+            publicId: byPublicId.publicId,
+            batchId: byPublicId.id,
+            batchRef: byPublicId.batchRef,
+            matchedBy: 'publicId' as const,
+          },
+          200,
+        );
+      }
+
+      const byBatchRef = (
+        await deps.db.db
+          .select()
+          .from(batches)
+          .where(sql`lower(${batches.batchRef}) = ${lower}`)
+          .limit(1)
+      )[0];
+      if (byBatchRef) {
+        return c.json(
+          {
+            publicId: byBatchRef.publicId,
+            batchId: byBatchRef.id,
+            batchRef: byBatchRef.batchRef,
+            matchedBy: 'batchRef' as const,
+          },
+          200,
+        );
+      }
+
+      if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalized)) {
+        const byUuid = (
+          await deps.db.db
+            .select()
+            .from(batches)
+            .where(eq(batches.id, lower))
+            .limit(1)
+        )[0];
+        if (byUuid) {
+          return c.json(
+            {
+              publicId: byUuid.publicId,
+              batchId: byUuid.id,
+              batchRef: byUuid.batchRef,
+              matchedBy: 'batchId' as const,
+            },
+            200,
+          );
+        }
+      }
+
+      if (/^0x[0-9a-f]{64}$/i.test(normalized)) {
+        const txMatch = (
+          await deps.db.db
+            .select({
+              publicId: batches.publicId,
+              batchId: batches.id,
+              batchRef: batches.batchRef,
+            })
+            .from(custodyEvents)
+            .innerJoin(batches, eq(custodyEvents.batchId, batches.id))
+            .where(sql`lower(${custodyEvents.txHash}) = ${lower}`)
+            .limit(1)
+        )[0];
+        if (txMatch) {
+          return c.json({ ...txMatch, matchedBy: 'txHash' as const }, 200);
+        }
+
+        const hashMatch = (
+          await deps.db.db
+            .select({
+              publicId: batches.publicId,
+              batchId: batches.id,
+              batchRef: batches.batchRef,
+            })
+            .from(custodyEvents)
+            .innerJoin(batches, eq(custodyEvents.batchId, batches.id))
+            .where(sql`lower(${custodyEvents.eventHash}) = ${lower}`)
+            .limit(1)
+        )[0];
+        if (hashMatch) {
+          return c.json({ ...hashMatch, matchedBy: 'eventHash' as const }, 200);
+        }
+
+        const onChainMatch = (
+          await deps.db.db
+            .select()
+            .from(batches)
+            .where(sql`lower(${batches.onChainBatchId}) = ${lower}`)
+            .limit(1)
+        )[0];
+        if (onChainMatch) {
+          return c.json(
+            {
+              publicId: onChainMatch.publicId,
+              batchId: onChainMatch.id,
+              batchRef: onChainMatch.batchRef,
+              matchedBy: 'onChainBatchId' as const,
+            },
+            200,
+          );
+        }
+      }
+
+      throw AppError.notFound(`No passport found matching "${normalized}"`);
+    })
     .openapi(getPublicPassportRoute, async (c) => {
     const { publicId } = c.req.valid('param');
     const batchRows = await deps.db.db

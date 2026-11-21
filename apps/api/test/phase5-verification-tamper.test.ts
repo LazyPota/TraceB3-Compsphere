@@ -827,4 +827,73 @@ describe('Phase 5 Verification, Public Passports, QR, Reconciler, Tamper Demo & 
       'RATE_LIMITED',
     );
   });
+
+  it('lists public passports and resolves public lookups by publicId, batchRef, and txHash', async () => {
+    const listRes = await app.request('/v1/public/passports?limit=10');
+    expect(listRes.status).toBe(200);
+    const listBody = (await listRes.json()) as {
+      viewLevel: string;
+      total: number;
+      items: Array<{
+        publicId: string;
+        batchId: string;
+        batchRef: string;
+        hasRevisions: boolean;
+        hasDiscrepancy: boolean;
+        declaredWeightGrams: string | null;
+        effectiveWeights: {
+          declaredGrams: string | null;
+          pickupGrams: string | null;
+          deliveryGrams: string | null;
+        };
+      }>;
+    };
+    expect(listBody.viewLevel).toBe('full');
+    expect(listBody.total).toBeGreaterThanOrEqual(1);
+    const found = listBody.items.find((i) => i.publicId === primaryPublicId);
+    expect(found).toBeDefined();
+    expect(found?.hasRevisions).toBe(true);
+    expect(found?.declaredWeightGrams).toBe('850000');
+
+    const flaggedRes = await app.request('/v1/public/passports?flagged=true');
+    expect(flaggedRes.status).toBe(200);
+    const flaggedBody = (await flaggedRes.json()) as {
+      items: Array<{ publicId: string; hasDiscrepancy: boolean }>;
+    };
+    expect(flaggedBody.items.every((i) => i.hasDiscrepancy)).toBe(true);
+
+    // Lookup by publicId
+    const byPub = await app.request(
+      `/v1/public/lookup?q=${encodeURIComponent(primaryPublicId)}`,
+    );
+    expect(byPub.status).toBe(200);
+    expect(((await byPub.json()) as { matchedBy: string }).matchedBy).toBe('publicId');
+
+    // Lookup by case-insensitive batchRef
+    const byRef = await app.request(
+      `/v1/public/lookup?q=${encodeURIComponent(found!.batchRef.toLowerCase())}`,
+    );
+    expect(byRef.status).toBe(200);
+    const byRefBody = (await byRef.json()) as { publicId: string; matchedBy: string };
+    expect(byRefBody.publicId).toBe(primaryPublicId);
+    expect(byRefBody.matchedBy).toBe('batchRef');
+
+    // Lookup by txHash
+    const passportRes = await app.request(`/v1/public/passports/${primaryPublicId}`);
+    const passportJson = (await passportRes.json()) as {
+      events: Array<{ txHash: string | null }>;
+    };
+    const txHash = passportJson.events.find((e) => e.txHash)?.txHash;
+    expect(txHash).toBeTruthy();
+
+    const byTx = await app.request(`/v1/public/lookup?q=${encodeURIComponent(txHash!)}`);
+    expect(byTx.status).toBe(200);
+    const byTxBody = (await byTx.json()) as { publicId: string; matchedBy: string };
+    expect(byTxBody.publicId).toBe(primaryPublicId);
+    expect(byTxBody.matchedBy).toBe('txHash');
+
+    // Unknown lookup -> 404
+    const missing = await app.request('/v1/public/lookup?q=DOES-NOT-EXIST-999');
+    expect(missing.status).toBe(404);
+  });
 });
