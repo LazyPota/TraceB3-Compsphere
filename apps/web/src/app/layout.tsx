@@ -1,6 +1,10 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { Inter, JetBrains_Mono } from 'next/font/google';
 import type { ReactNode } from 'react';
+import { cookieToInitialState } from 'wagmi';
+import { Providers } from '@/components/providers';
+import { getWagmiConfig } from '@/lib/wagmi';
 import './globals.css';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
@@ -24,10 +28,15 @@ export const viewport: Viewport = {
   colorScheme: 'light',
 };
 
-export default function RootLayout({ children }: { children: ReactNode }) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const headersObj = await headers();
+  const initialState = cookieToInitialState(getWagmiConfig(), headersObj.get('cookie'));
+
   return (
     <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <body className="min-h-dvh">{children}</body>
+      <body className="min-h-dvh">
+        <Providers initialState={initialState}>{children}</Providers>
+      </body>
     </html>
   );
 }
